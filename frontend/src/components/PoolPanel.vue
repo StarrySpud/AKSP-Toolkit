@@ -1342,6 +1342,12 @@
       gap: 10px;
     }
 
+    /* 手机上取消内部滚动上限，内容随页面自然滚动，避免双层滚动手势打架 */
+    .drag-area {
+      max-height: none;
+      overflow-y: visible;
+    }
+
     .filter-panel {
       gap: 8px;
       padding: 8px 10px;

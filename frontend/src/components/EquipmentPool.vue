@@ -348,6 +348,8 @@
       grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
       max-height: none;
       min-height: 40vh;
+      /* 随页面滚动，不在内部卡一层滚动区 */
+      overflow-y: visible;
     }
 
     .card-icon {

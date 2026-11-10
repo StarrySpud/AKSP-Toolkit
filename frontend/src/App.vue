@@ -579,6 +579,8 @@
     .side-bar {
       flex: none;
       width: 100%;
+      /* 桌面端的 420px 保底在手机上会撑破视口，必须清掉 */
+      min-width: 0;
       overflow: visible;
     }
 
@@ -591,8 +593,8 @@
 
   @media (max-width: 768px) {
     .arknights-tool {
-      min-height: 100vh;
-      padding: 10px 10px 24px;
+      min-height: 100svh;
+      padding: 10px 12px 24px;
     }
 
     .app-header {
