@@ -149,6 +149,37 @@ describe("干员池筛选", () => {
     wrapper.unmount();
   });
 
+  it("规程 Ban 阵营：带该阵营的干员全部隐藏", async () => {
+    const wrapper = mount(PoolPanel);
+    await nextTick();
+    await toTextView(wrapper);
+
+    // 折桠的盟约是 乌萨斯（阵营）+ 不屈；Ban 阵营即整阵营隐藏
+    await banViaChip(wrapper, "乌萨斯");
+    expect(visibleNames(wrapper)).not.toContain("折桠");
+
+    // 无乌萨斯阵营的干员不受影响
+    expect(visibleNames(wrapper)).toContain("逻各斯");
+    wrapper.unmount();
+  });
+
+  it("规程 Ban 盟约：全部盟约被 Ban 才隐藏", async () => {
+    const wrapper = mount(PoolPanel);
+    await nextTick();
+    await toTextView(wrapper);
+
+    // Ban 附加盟约不屈：折桠（乌萨斯+不屈）仍显示
+    await banViaChip(wrapper, "不屈");
+    expect(visibleNames(wrapper)).toContain("折桠");
+    // 只有不屈的干员被隐藏
+    expect(visibleNames(wrapper)).not.toContain("宴");
+
+    // 加上乌萨斯也 Ban 后，折桠全部盟约被 Ban 才隐藏
+    await banViaChip(wrapper, "乌萨斯");
+    expect(visibleNames(wrapper)).not.toContain("折桠");
+    wrapper.unmount();
+  });
+
   it("已筛摘要逐条显示 Ban 项并可逐条取消", async () => {
     const wrapper = mount(PoolPanel);
     await nextTick();

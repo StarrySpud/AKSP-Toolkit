@@ -557,10 +557,28 @@
   });
 
   /** Ban 判定：干员的全部盟约都被 Ban 才隐藏（无盟约的干员不受影响） */
-  const isBanned = (covenants) =>
-    bannedCovenants.value.length > 0 &&
-    covenants.length > 0 &&
-    covenants.every((cov) => bannedCovenants.value.includes(cov));
+  /**
+   * Ban 命中判定（按版本策略区分）：
+   * - covenant 策略（盟约版）：干员的全部盟约都被 Ban 才隐藏
+   * - faction 策略（规程版）：Ban 阵营 = 带该阵营的干员全部隐藏；
+   *   附加盟约仍按「全部被 Ban 才隐藏」
+   */
+  const isBanned = (covenants) => {
+    if (bannedCovenants.value.length === 0 || covenants.length === 0) {
+      return false;
+    }
+    if (currentVersion.value.banStrategy === "faction") {
+      const factionBanned = covenants.some(
+        (cov) =>
+          coreCovenants.value.includes(cov) &&
+          bannedCovenants.value.includes(cov),
+      );
+      if (factionBanned) {
+        return true;
+      }
+    }
+    return covenants.every((cov) => bannedCovenants.value.includes(cov));
+  };
 
   /** 悬停展示干员特质与所属盟约 */
   const hoverTraits = (event, op) => {
@@ -1161,7 +1179,7 @@
       overflow-y: visible;
     }
 
-    /* 干员池折叠条：堆叠布局时可用，把长列表收起以腾出编队空间 */
+    /* 干员池折叠条：堆叠布局时可用，把长列表收起腾出编队空间 */
     .pool-toggle {
       display: flex;
       align-items: center;
@@ -1181,7 +1199,6 @@
     .pool-toggle:active {
       background: #232323;
     }
-
     .pool-toggle-title {
       font-weight: bold;
       color: #eee;
@@ -1222,6 +1239,7 @@
     .pool-toggle.collapsed .pool-toggle-hint {
       color: #999;
     }
+
   }
 
   @media (max-width: 768px) {
@@ -1316,7 +1334,6 @@
   }
 
   @media (max-width: 420px) {
-
     .pool-toggle-hint {
       display: none;
     }

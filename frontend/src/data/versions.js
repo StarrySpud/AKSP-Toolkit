@@ -52,6 +52,9 @@ export const GAME_VERSIONS = [
     source: "https://prts.wiki/w/卫戍协议·规程/PRTS盟约记录",
     // 规程的甄选干员按阵营匹配核心盟约，匹配不到则分配「协防干员」
     selfOperatorStrategy: "faction",
+    // 规程 Ban 规则：Ban 阵营 = 带该阵营的干员全部隐藏；
+    // 附加盟约仍按「全部盟约被 Ban 才隐藏」。「盟约」版缺省为 covenant 策略
+    banStrategy: "faction",
     covenants: covenantsGuicheng,
     operators: operatorsGuicheng,
     equipments: equipmentsGuicheng,
