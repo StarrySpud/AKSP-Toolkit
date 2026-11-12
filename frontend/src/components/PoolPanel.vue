@@ -276,6 +276,7 @@
         :group="{ name: 'ops', pull: 'clone', put: false }"
         :sort="false"
         class="pool-grid"
+        :disabled="isMobile"
       >
         <div
           v-for="op in filteredPool"

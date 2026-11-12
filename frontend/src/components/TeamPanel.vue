@@ -49,6 +49,10 @@
       v-model="teamModel"
       group="ops"
       class="drag-area team-grid"
+      :delay="200"
+      :delay-on-touch-only="true"
+      :touch-start-threshold="10"
+      :fallback-tolerance="8"
     >
       <div
         v-for="(op, index) in team"
