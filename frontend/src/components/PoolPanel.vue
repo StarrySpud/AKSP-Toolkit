@@ -360,7 +360,7 @@
   const FILTER_VIEW_KEY = "arknights_pool_filter_view";
   const FILTER_COLLAPSED_KEY = "arknights_pool_filter_collapsed";
   /** 移动端断点，与样式中的媒体查询保持一致 */
-  const MOBILE_QUERY = "(max-width: 768px)";
+  const MOBILE_QUERY = "(max-width: 1024px)";
 
   // 筛选状态
   const searchQuery = ref("");
@@ -1154,79 +1154,14 @@
       flex-basis: 34px;
     }
 
-    .drag-area {
-      max-height: 60vh;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .operator-pool {
-      gap: 12px;
-    }
-
-    /* 手机上取消内部滚动上限，内容随页面自然滚动，避免双层滚动手势打架 */
+    /* 堆叠布局下取消内部滚动上限：展开的干员池随页面自然滚动，
+       不再出现 60vh 内部滚动区与页面滚动打架导致「溢出无法操作」 */
     .drag-area {
       max-height: none;
       overflow-y: visible;
     }
 
-    .filter-panel {
-      gap: 8px;
-      padding: 8px 10px;
-    }
-
-    .filter-head {
-      gap: 6px;
-    }
-
-    .search-input {
-      flex: 1 1 100%;
-      padding: 8px 10px;
-      font-size: 14px;
-    }
-
-    .head-actions {
-      width: 100%;
-      margin-left: 0;
-      gap: 6px;
-    }
-
-    .view-btn,
-    .collapse-btn {
-      padding: 8px 10px;
-      font-size: 12px;
-    }
-
-    .add-btn {
-      margin-left: auto;
-      padding: 8px 12px;
-    }
-
-    .row-label {
-      flex-basis: 30px;
-      font-size: 11px;
-      line-height: 30px;
-    }
-
-    .icon-filter-row {
-      gap: 6px;
-    }
-
-    .chip {
-      padding: 8px 10px;
-      font-size: 12px;
-    }
-
-    .cov-hint {
-      display: none;
-    }
-
-    .cov-icon {
-      width: 34px;
-      height: 34px;
-    }
-
-    /* 干员池折叠条 */
+    /* 干员池折叠条：堆叠布局时可用，把长列表收起以腾出编队空间 */
     .pool-toggle {
       display: flex;
       align-items: center;
@@ -1287,11 +1222,72 @@
     .pool-toggle.collapsed .pool-toggle-hint {
       color: #999;
     }
+  }
+
+  @media (max-width: 768px) {
+    .operator-pool {
+      gap: 12px;
+    }
+
+    .filter-panel {
+      gap: 8px;
+      padding: 8px 10px;
+    }
+
+    .filter-head {
+      gap: 6px;
+    }
+
+    .search-input {
+      flex: 1 1 100%;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+    .head-actions {
+      width: 100%;
+      margin-left: 0;
+      gap: 6px;
+    }
+
+    .view-btn,
+    .collapse-btn {
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .add-btn {
+      margin-left: auto;
+      padding: 8px 12px;
+    }
+
+    .row-label {
+      flex-basis: 30px;
+      font-size: 11px;
+      line-height: 30px;
+    }
+
+    .icon-filter-row {
+      gap: 6px;
+    }
+
+    .chip {
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .cov-hint {
+      display: none;
+    }
+
+    .cov-icon {
+      width: 34px;
+      height: 34px;
+    }
 
     /* 干员网格：固定列宽改为自适应列 */
     .drag-area {
       padding: 10px;
-      max-height: 52vh;
       min-height: 80px;
     }
 
@@ -1327,6 +1323,7 @@
 
     .pool-grid {
       grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+      gap: 12px 8px;
     }
   }
 </style>
