@@ -99,11 +99,12 @@
               :key="name"
               type="button"
               class="cov-icon"
-              :class="{ active: selectedMainCov === name }"
+              :class="{
+                active: selectedMainCov === name,
+                banned: bannedCovenants.includes(name),
+              }"
               v-on="covenantHoverEvents(name)"
-              @click="
-                toggleFilter(selectedMainCov, name, (v) => (selectedMainCov = v))
-              "
+              @click="toggleCovState(name, selectedMainCov, (v) => (selectedMainCov = v))"
             >
               <img
                 :src="getIconUrl(name)"
@@ -122,11 +123,12 @@
               :key="name"
               type="button"
               class="chip"
-              :class="{ active: selectedMainCov === name }"
+              :class="{
+                active: selectedMainCov === name,
+                banned: bannedCovenants.includes(name),
+              }"
               v-on="covenantHoverEvents(name)"
-              @click="
-                toggleFilter(selectedMainCov, name, (v) => (selectedMainCov = v))
-              "
+              @click="toggleCovState(name, selectedMainCov, (v) => (selectedMainCov = v))"
             >
               {{ name }}
             </button>
@@ -139,6 +141,7 @@
           class="icon-filter-row"
         >
           <span class="row-label">盟约</span>
+          <span class="cov-hint">点两下 Ban</span>
 
           <div
             v-if="filterView === 'icon'"
@@ -149,11 +152,12 @@
               :key="name"
               type="button"
               class="cov-icon"
-              :class="{ active: selectedSubCov === name }"
+              :class="{
+                active: selectedSubCov === name,
+                banned: bannedCovenants.includes(name),
+              }"
               v-on="covenantHoverEvents(name)"
-              @click="
-                toggleFilter(selectedSubCov, name, (v) => (selectedSubCov = v))
-              "
+              @click="toggleCovState(name, selectedSubCov, (v) => (selectedSubCov = v))"
             >
               <img
                 :src="getIconUrl(name)"
@@ -172,11 +176,12 @@
               :key="name"
               type="button"
               class="chip"
-              :class="{ active: selectedSubCov === name }"
+              :class="{
+                active: selectedSubCov === name,
+                banned: bannedCovenants.includes(name),
+              }"
               v-on="covenantHoverEvents(name)"
-              @click="
-                toggleFilter(selectedSubCov, name, (v) => (selectedSubCov = v))
-              "
+              @click="toggleCovState(name, selectedSubCov, (v) => (selectedSubCov = v))"
             >
               {{ name }}
             </button>
@@ -243,75 +248,6 @@
         >
           清除全部
         </button>
-      </div>
-    </div>
-
-    <!-- Ban 盟约：内联区块（可折叠，展开时挤压下方列表） -->
-    <div
-      class="ban-section"
-      :class="{ 'has-banned': bannedCovenants.length > 0 }"
-    >
-      <button
-        type="button"
-        class="ban-header"
-        @click="banPanelOpen = !banPanelOpen"
-      >
-        <span class="ban-title">Ban 盟约</span>
-        <span
-          v-if="bannedCovenants.length > 0"
-          class="ban-badge"
-          >{{ bannedCovenants.length }}</span
-        >
-        <span class="ban-hint">干员的全部盟约都被 Ban 才会隐藏</span>
-        <span
-          class="ban-arrow"
-          :class="{ expanded: banPanelOpen }"
-          >▼</span
-        >
-      </button>
-
-      <div
-        v-show="banPanelOpen"
-        class="ban-body"
-      >
-        <div class="ban-icon-grid">
-          <button
-            v-for="cov in allCovenants"
-            :key="cov"
-            type="button"
-            class="ban-icon"
-            :class="{ banned: bannedCovenants.includes(cov) }"
-            v-on="covenantHoverEvents(cov)"
-            @click="toggleBan(cov)"
-          >
-            <span class="ban-icon-img">
-              <img
-                :src="getIconUrl(cov)"
-                :alt="cov"
-                @error="handleImgError"
-              />
-              <span
-                v-if="bannedCovenants.includes(cov)"
-                class="ban-x"
-                >✕</span
-              >
-            </span>
-            <span class="ban-name">{{ cov }}</span>
-          </button>
-        </div>
-
-        <div
-          v-if="bannedCovenants.length > 0"
-          class="ban-footer"
-        >
-          <button
-            type="button"
-            class="ban-clear"
-            @click="bannedCovenants = []"
-          >
-            清空全部（{{ bannedCovenants.length }}）
-          </button>
-        </div>
       </div>
     </div>
 
@@ -430,7 +366,6 @@
   const selectedTraitType = ref("");
   const selectedTraitTrigger = ref("");
   const bannedCovenants = ref([]);
-  const banPanelOpen = ref(false);
   const filterCollapsed = ref(false);
   const filterView = ref("icon");
   const showAddOpModal = ref(false);
@@ -469,23 +404,36 @@
     setter(current === value ? "" : value);
   };
 
+  /**
+   * 盟约三态切换（筛选与 Ban 合并，同一组按钮）：
+   * 未选中 → 点一下 = 按该盟约筛选；已选中 → 再点一下 = Ban；
+   * 已 Ban → 再点一下 = 取消 Ban。
+   */
+  const toggleCovState = (cov, currentSelected, setter) => {
+    if (isCoarsePointer()) {
+      hideCovenantTooltip();
+    }
+    if (currentSelected === cov) {
+      // 第二次点击：筛选 → Ban
+      setter("");
+      if (!bannedCovenants.value.includes(cov)) {
+        bannedCovenants.value = [...bannedCovenants.value, cov];
+      }
+    } else if (bannedCovenants.value.includes(cov)) {
+      // 第三次点击：取消 Ban
+      bannedCovenants.value = bannedCovenants.value.filter((c) => c !== cov);
+    } else {
+      // 第一次点击：选中筛选
+      setter(cov);
+    }
+  };
+
   /** 悬停盟约入口时展示效果详情（图标 / 文字 chip / Ban 列表共用） */
   const covenantHoverEvents = (name) => ({
     mouseenter: (event) => showCovenantTooltip(event, name),
     mousemove: moveCovenantTooltip,
     mouseleave: hideCovenantTooltip,
   });
-
-  const toggleBan = (cov) => {
-    if (isCoarsePointer()) {
-      hideCovenantTooltip();
-    }
-    if (bannedCovenants.value.includes(cov)) {
-      bannedCovenants.value = bannedCovenants.value.filter((c) => c !== cov);
-    } else {
-      bannedCovenants.value = [...bannedCovenants.value, cov];
-    }
-  };
 
   /** 当前生效的筛选项摘要，用于顶部回显与逐项取消 */
   const activeFilterList = computed(() => {
@@ -525,11 +473,14 @@
         clear: () => (selectedTraitTrigger.value = ""),
       });
     }
-    if (bannedCovenants.value.length > 0) {
+    for (const cov of bannedCovenants.value) {
       list.push({
-        key: "ban",
-        label: `Ban ${bannedCovenants.value.length}`,
-        clear: () => (bannedCovenants.value = []),
+        key: `ban-${cov}`,
+        label: `Ban ${cov}`,
+        clear: () =>
+          (bannedCovenants.value = bannedCovenants.value.filter(
+            (c) => c !== cov,
+          )),
       });
     }
     return list;
@@ -934,6 +885,7 @@
     border-radius: 50%;
     cursor: pointer;
     opacity: 0.66;
+    position: relative;
     transition:
       opacity 0.15s,
       border-color 0.15s,
@@ -1020,177 +972,43 @@
   }
 
   /* Ban 盟约：内联区块 */
-  .ban-section {
-    border: 1px solid #333;
-    border-radius: 6px;
-    background: #1c1c1c;
-    overflow: hidden;
-  }
-
-  .ban-section.has-banned {
-    border-color: rgba(255, 107, 107, 0.45);
-  }
-
-  .ban-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 8px 12px;
-    background: transparent;
-    border: none;
-    color: #ccc;
-    font-size: 13px;
-    cursor: pointer;
-    text-align: left;
-  }
-
-  .ban-header:hover {
-    background: #222;
-  }
-
-  .ban-section.has-banned .ban-title {
-    color: #ff8a8a;
-  }
-
-  .ban-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    background: #ff4d4f;
-    color: #fff;
-    font-size: 12px;
-    font-weight: bold;
-    border-radius: 10px;
-    line-height: 1;
-  }
-
-  .ban-hint {
-    flex: 1;
+  /* 盟约 Ban 态：筛选与 Ban 同一组按钮，Ban 样式区别于选中 */
+  .cov-hint {
     font-size: 11px;
-    color: #777;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: #666;
+    margin-left: 2px;
     white-space: nowrap;
   }
 
-  .ban-arrow {
-    font-size: 10px;
-    color: #888;
-    transition: transform 0.2s;
-  }
-
-  .ban-arrow.expanded {
-    transform: rotate(180deg);
-  }
-
-  .ban-body {
-    padding: 4px 12px 12px;
-    border-top: 1px solid #2c2c2c;
-  }
-
-  .ban-icon-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-    gap: 10px 6px;
-    padding-top: 8px;
-  }
-
-  .ban-icon {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    background: transparent;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-  }
-
-  .ban-icon-img {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    padding: 2px;
-    background: #222;
-    border: 1px solid #3a3a3a;
-    border-radius: 50%;
-    opacity: 0.78;
-    transition:
-      opacity 0.15s,
-      border-color 0.15s,
-      box-shadow 0.15s;
-  }
-
-  .ban-icon-img img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    display: block;
-    object-fit: contain;
-    filter: grayscale(0.35);
-  }
-
-  .ban-icon:hover .ban-icon-img {
-    opacity: 1;
-    border-color: #888;
-  }
-
-  .ban-icon.banned .ban-icon-img {
-    opacity: 1;
+  .chip.banned {
+    background: rgba(255, 77, 79, 0.14);
     border-color: #ff4d4f;
-    box-shadow: 0 0 0 1px #ff4d4f, 0 0 9px rgba(255, 77, 79, 0.4);
+    color: #ff8a8c;
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 138, 140, 0.7);
   }
 
-  .ban-icon.banned .ban-icon-img img {
-    filter: grayscale(1) brightness(0.65);
+  .cov-icon.banned {
+    border-color: #ff4d4f;
+    box-shadow: 0 0 0 1px #ff4d4f, 0 0 8px rgba(255, 77, 79, 0.35);
   }
 
-  .ban-x {
+  .cov-icon.banned img {
+    filter: grayscale(1) brightness(0.55);
+  }
+
+  .cov-icon.banned::after {
+    content: "\2715";
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #ff5c5c;
-    font-size: 18px;
+    color: #ff6b6d;
+    font-size: 16px;
     font-weight: bold;
-    text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
-  }
-
-  .ban-name {
-    font-size: 11px;
-    color: #aaa;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  .ban-icon.banned .ban-name {
-    color: #ff8a8a;
-  }
-
-  .ban-footer {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 8px;
-  }
-
-  .ban-clear {
-    background: transparent;
-    border: 1px solid #555;
-    color: #bbb;
-    font-size: 12px;
-    border-radius: 3px;
-    padding: 3px 10px;
-    cursor: pointer;
-  }
-
-  .ban-clear:hover {
-    color: #fff;
-    border-color: #999;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
   }
 
   /* 干员单元格 */
@@ -1395,6 +1213,10 @@
       font-size: 12px;
     }
 
+    .cov-hint {
+      display: none;
+    }
+
     .cov-icon {
       width: 34px;
       height: 34px;
@@ -1484,23 +1306,9 @@
       margin-top: 4px;
     }
 
-    .ban-body {
-      padding: 4px 10px 10px;
-    }
 
-    .ban-icon-grid {
-      grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
-      gap: 8px 4px;
-    }
 
-    .ban-icon-img {
-      width: 34px;
-      height: 34px;
-    }
 
-    .ban-name {
-      font-size: 10px;
-    }
 
     .active-chip {
       padding: 5px 8px;
@@ -1508,9 +1316,6 @@
   }
 
   @media (max-width: 420px) {
-    .ban-hint {
-      display: none;
-    }
 
     .pool-toggle-hint {
       display: none;

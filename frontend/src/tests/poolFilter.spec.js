@@ -10,8 +10,20 @@ const visibleNames = (wrapper) =>
 const findChip = (wrapper, text) =>
   wrapper.findAll("button.chip").find((c) => c.text().trim() === text);
 
-const findBanIcon = (wrapper, name) =>
-  wrapper.findAll(".ban-icon").find((b) => b.find(".ban-name").text() === name);
+const toTextView = async (wrapper) => {
+  const textBtn = wrapper
+    .findAll(".view-btn")
+    .find((b) => b.text() === "文字");
+  await textBtn.trigger("click");
+};
+
+/** 盟约三态：点一下筛选、再点一下 Ban */
+const banViaChip = async (wrapper, name) => {
+  let chip = findChip(wrapper, name);
+  await chip.trigger("click");
+  chip = findChip(wrapper, name);
+  await chip.trigger("click");
+};
 
 describe("干员池筛选", () => {
   beforeEach(() => {
@@ -105,51 +117,77 @@ describe("干员池筛选", () => {
     wrapper.unmount();
   });
 
-  it("Ban 盟约：仅 Ban 其一仍显示，全部 Ban 才隐藏", async () => {
+  it("盟约三态：点一下筛选、再点一下 Ban、第三下取消", async () => {
     const wrapper = mount(PoolPanel);
     await nextTick();
+    await toTextView(wrapper);
 
-    // 展开 Ban 区块
-    await wrapper.find(".ban-header").trigger("click");
-    expect(wrapper.find(".ban-body").isVisible()).toBe(true);
-    expect(wrapper.findAll(".ban-icon").length).toBe(26);
-
-    // 折桠的盟约是 乌萨斯 + 不屈
-    await findBanIcon(wrapper, "乌萨斯").trigger("click");
+    // 点一下：按盟约筛选（不屈为附加盟约）
+    let chip = findChip(wrapper, "不屈");
+    await chip.trigger("click");
+    expect(chip.classes()).toContain("active");
+    expect(visibleNames(wrapper).length).toBeLessThan(143);
     expect(visibleNames(wrapper)).toContain("折桠");
 
-    await findBanIcon(wrapper, "不屈").trigger("click");
-    expect(visibleNames(wrapper)).not.toContain("折桠");
+    // 再点一下：转为 Ban，筛选状态清除
+    chip = findChip(wrapper, "不屈");
+    await chip.trigger("click");
+    chip = findChip(wrapper, "不屈");
+    expect(chip.classes()).toContain("banned");
+    expect(chip.classes()).not.toContain("active");
+    // 仅 Ban 盟约其一：折桠（乌萨斯+不屈）仍显示；只有不屈的宴/风丸被隐藏
+    expect(visibleNames(wrapper)).toContain("折桠");
+    expect(visibleNames(wrapper)).not.toContain("宴");
+    expect(visibleNames(wrapper)).not.toContain("风丸");
 
-    // 与折桠无关的干员不受影响
-    expect(visibleNames(wrapper)).toContain("逻各斯");
+    // 第三下：取消 Ban，池子恢复
+    chip = findChip(wrapper, "不屈");
+    await chip.trigger("click");
+    chip = findChip(wrapper, "不屈");
+    expect(chip.classes()).not.toContain("banned");
+    expect(visibleNames(wrapper).length).toBe(143);
     wrapper.unmount();
   });
 
-  it("Ban 区块折叠后只显示数量角标", async () => {
+  it("已筛摘要逐条显示 Ban 项并可逐条取消", async () => {
     const wrapper = mount(PoolPanel);
     await nextTick();
+    await toTextView(wrapper);
 
-    await wrapper.find(".ban-header").trigger("click");
-    await findBanIcon(wrapper, "乌萨斯").trigger("click");
-    await findBanIcon(wrapper, "不屈").trigger("click");
-    // 再次点击折叠
-    await wrapper.find(".ban-header").trigger("click");
+    await banViaChip(wrapper, "乌萨斯");
+    await banViaChip(wrapper, "不屈");
 
-    expect(wrapper.find(".ban-body").isVisible()).toBe(false);
-    expect(wrapper.find(".ban-badge").text()).toBe("2");
-    expect(wrapper.find(".ban-section").classes()).toContain("has-banned");
+    const labels = wrapper.findAll(".active-chip").map((c) => c.text());
+    expect(labels.some((t) => t.includes("乌萨斯"))).toBe(true);
+    expect(labels.some((t) => t.includes("不屈"))).toBe(true);
+
+    // 逐条取消：解禁乌萨斯后折桠（不屈仍 Ban）恢复显示
+    const chip = wrapper
+      .findAll(".active-chip")
+      .find((c) => c.text().includes("乌萨斯"));
+    await chip.trigger("click");
+    expect(visibleNames(wrapper)).toContain("折桠");
     wrapper.unmount();
   });
 
   it("Ban 全部盟约时池子清空", async () => {
     const wrapper = mount(PoolPanel);
     await nextTick();
+    await toTextView(wrapper);
 
-    await wrapper.find(".ban-header").trigger("click");
-    const icons = wrapper.findAll(".ban-icon");
-    for (const icon of icons) {
-      await icon.trigger("click");
+    // 阵营 + 盟约两行的全部按钮逐个双击 Ban
+    const covRows = wrapper
+      .findAll(".icon-filter-row")
+      .filter((row) => {
+        const label = row.find(".row-label").text();
+        return label === "阵营" || label === "盟约";
+      });
+    const names = covRows.flatMap((row) =>
+      row.findAll("button.chip").map((chip) => chip.text().trim()),
+    );
+    expect(names.length).toBe(26);
+    for (const name of names) {
+      await banViaChip(wrapper, name);
     }
     expect(visibleNames(wrapper).length).toBe(0);
     wrapper.unmount();
