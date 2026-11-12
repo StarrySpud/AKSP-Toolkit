@@ -615,12 +615,12 @@
     }
 
     .container {
-      gap: 12px;
+      gap: 14px;
     }
 
     /* 小屏改为上下排列：编队在上，临时装备池在下 */
     .team-col {
-      gap: 8px;
+      gap: 10px;
     }
 
     .tab-list {

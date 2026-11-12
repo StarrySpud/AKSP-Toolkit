@@ -10,32 +10,6 @@
         />
 
         <div class="head-actions">
-          <!-- 图标 / 文字 视图切换 -->
-          <div
-            class="view-switch"
-            role="group"
-            aria-label="筛选展示方式"
-          >
-            <button
-              type="button"
-              class="view-btn"
-              :class="{ active: filterView === 'icon' }"
-              title="图标筛选"
-              @click="filterView = 'icon'"
-            >
-              图标
-            </button>
-            <button
-              type="button"
-              class="view-btn"
-              :class="{ active: filterView === 'text' }"
-              title="文字筛选"
-              @click="filterView = 'text'"
-            >
-              文字
-            </button>
-          </div>
-
           <button
             type="button"
             class="collapse-btn"
@@ -65,6 +39,35 @@
         v-show="!filterCollapsed"
         class="filter-body"
       >
+        <!-- 视图切换：只在筛选展开时出现 -->
+        <div class="icon-filter-row view-row">
+          <span class="row-label">视图</span>
+          <div
+            class="view-switch"
+            role="group"
+            aria-label="筛选展示方式"
+          >
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ active: filterView === 'icon' }"
+              title="图标筛选"
+              @click="filterView = 'icon'"
+            >
+              图标
+            </button>
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ active: filterView === 'text' }"
+              title="文字筛选"
+              @click="filterView = 'text'"
+            >
+              文字
+            </button>
+          </div>
+        </div>
+
         <!-- 阶数 -->
         <div class="icon-filter-row">
           <span class="row-label">阶数</span>
@@ -1158,7 +1161,7 @@
 
   @media (max-width: 768px) {
     .operator-pool {
-      gap: 10px;
+      gap: 12px;
     }
 
     /* 手机上取消内部滚动上限，内容随页面自然滚动，避免双层滚动手势打架 */
@@ -1210,7 +1213,7 @@
     }
 
     .chip {
-      padding: 7px 9px;
+      padding: 8px 10px;
       font-size: 12px;
     }
 

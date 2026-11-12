@@ -713,7 +713,7 @@
 
   @media (max-width: 768px) {
     .my-team {
-      gap: 8px;
+      gap: 10px;
     }
 
     .panel-header {
@@ -744,10 +744,10 @@
     }
 
     .drag-area {
-      gap: 10px 8px;
-      padding: 10px;
+      gap: 12px 10px;
+      padding: 12px;
       max-height: none;
-      min-height: 84px;
+      min-height: 96px;
     }
 
     .team-grid {
