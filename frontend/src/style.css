@@ -49,19 +49,27 @@ body {
   margin: 0;
   padding: 0;
   background: #121212;
-  /* overflow-x:hidden 会让 overflow-y 从 visible 计算成 auto，
-     使 body 成为滚动容器。移动端需要 body 可滚，这里保持即可，
-     但注意不要在子级再堆 overflow-y:auto 造成嵌套滚动 */
+  /* overflow-x:hidden 会把 overflow-y 从 visible 计算成 auto，
+     使元素变成滚动容器。移动端真正的滚动容器必须是 html（viewport），
+     子级不要再堆 overflow-y:auto，否则形成嵌套滚动 */
   overflow-x: hidden;
+}
+
+html {
+  /* 「到顶/到底不回弹、不下拉刷新」要写在这里。
+     千万别写在 body 上：body 高度等于内容高度（自身不可滚），
+     overscroll-behavior:contain 会把手势的滚动链掐断在 body，
+     页面就完全推不动了（移动端「滑不动」的元凶）。
+     根元素上的 overscroll-behavior 作用于 viewport，不会影响滚动 */
+  overscroll-behavior-y: none;
 }
 
 body {
   font-family: var(--sans);
   color: #eee;
-  /* contain 阻止滚动到底时向 html 传播（防止整页橡皮筋弹跳），
-     但不影响子级滚动区向上传播——子级需要自己的 overscroll-behavior */
-  overscroll-behavior-y: contain;
-  /* iOS 惯性滚动：body 作为主滚动容器时需要 */
+  /* 保持默认值，显式写出以防继承到意外的 contain/none */
+  overscroll-behavior-y: auto;
+  /* iOS 惯性滚动 */
   -webkit-overflow-scrolling: touch;
 }
 
