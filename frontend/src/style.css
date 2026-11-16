@@ -49,18 +49,26 @@ body {
   margin: 0;
   padding: 0;
   background: #121212;
+  /* overflow-x:hidden 会让 overflow-y 从 visible 计算成 auto，
+     使 body 成为滚动容器。移动端需要 body 可滚，这里保持即可，
+     但注意不要在子级再堆 overflow-y:auto 造成嵌套滚动 */
   overflow-x: hidden;
 }
 
 body {
   font-family: var(--sans);
   color: #eee;
+  /* contain 阻止滚动到底时向 html 传播（防止整页橡皮筋弹跳），
+     但不影响子级滚动区向上传播——子级需要自己的 overscroll-behavior */
   overscroll-behavior-y: contain;
+  /* iOS 惯性滚动：body 作为主滚动容器时需要 */
+  -webkit-overflow-scrolling: touch;
 }
 
 #app {
   width: 100%;
-  min-height: 100vh;
+  /* svh 适配 iOS 动态地址栏：100vh 包含地址栏会遮挡底部 */
+  min-height: 100svh;
   text-align: center;
 }
 
@@ -73,6 +81,7 @@ textarea {
 
 button {
   -webkit-tap-highlight-color: transparent;
+  /* manipulation：允许点击+滚动，禁止双击缩放（减少 300ms 点击延迟） */
   touch-action: manipulation;
 }
 
@@ -80,8 +89,28 @@ img {
   -webkit-user-drag: none;
 }
 
-@media (max-width: 768px) {
+/* 移动端默认允许垂直滚动：touch-action: pan-y 告诉浏览器
+   此元素只接受垂直平移手势，浏览器可以立即开始滚动而不等待
+   事件监听器判断是否 preventDefault。这是消除"滑动卡顿"的关键 */
+@media (max-width: 1024px) {
   :root {
     font-size: 15px;
+  }
+
+  /* 所有容器默认允许垂直滑动，防止 SortableJS 等库的 touch 监听
+     被浏览器当作"可能 preventDefault"而延迟滚动 */
+  .arknights-tool,
+  .operator-pool,
+  .drag-area,
+  .scrollable,
+  .equip-grid,
+  .collapse-content,
+  .filter-panel,
+  .filter-body,
+  .my-team,
+  .team-grid,
+  .equip-staging,
+  .covenant-bar {
+    touch-action: pan-y;
   }
 }

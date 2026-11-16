@@ -1106,6 +1106,8 @@
     min-height: 100px;
     max-height: 80vh;
     align-content: flex-start;
+    /* 仅在元素是滚动容器（overflow-y:auto/scroll）时生效，
+       桌面端 .scrollable 会把它变成滚动区 */
     -webkit-overflow-scrolling: touch;
   }
 
@@ -1173,10 +1175,17 @@
     }
 
     /* 堆叠布局下取消内部滚动上限：展开的干员池随页面自然滚动，
-       不再出现 60vh 内部滚动区与页面滚动打架导致「溢出无法操作」 */
-    .drag-area {
+       不再出现内部滚动区与页面滚动打架导致「溢出无法操作」。
+       注意 .drag-area 同时带 .scrollable 类，必须同时覆盖 .scrollable，
+       否则 .scrollable 的 overflow-y:auto 会让元素仍是内部滚动容器 */
+    .drag-area,
+    .scrollable {
       max-height: none;
       overflow-y: visible;
+      /* flex:1 + min-height:0 在无固定高度的父级里会塌成很小的视口高度，
+         使元素成为内部滚动区。移动端改为按内容自然高度 */
+      flex: 0 0 auto;
+      min-height: 0;
     }
 
     /* 干员池折叠条：堆叠布局时可用，把长列表收起腾出编队空间 */

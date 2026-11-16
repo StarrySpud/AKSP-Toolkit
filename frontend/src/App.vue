@@ -568,6 +568,8 @@
     .arknights-tool {
       height: auto;
       overflow: visible;
+      /* 整页滚动时允许垂直手势，避免被子元素拦截 */
+      touch-action: pan-y;
     }
 
     .container {
@@ -581,6 +583,8 @@
       width: 100%;
       /* 桌面端的 420px 保底在手机上会撑破视口，必须清掉 */
       min-width: 0;
+      /* 桌面端的 overflow-y:auto 在移动端会形成内部滚动陷阱，
+         手指落在侧栏时只滚侧栏不滚页面 */
       overflow: visible;
     }
 

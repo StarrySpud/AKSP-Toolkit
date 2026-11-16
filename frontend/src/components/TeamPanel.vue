@@ -711,6 +711,15 @@
     text-align: left;
   }
 
+  @media (max-width: 1024px) {
+    /* 已激活效果详情：移动端取消 250px 内部滚动上限，
+       随页面自然滚动，避免手指落在详情区时只滚详情不滚页面 */
+    .collapse-content {
+      max-height: none;
+      overflow-y: visible;
+    }
+  }
+
   @media (max-width: 768px) {
     .my-team {
       gap: 10px;
@@ -792,7 +801,7 @@
 
     .collapse-content {
       padding: 12px;
-      max-height: 45vh;
+      /* max-height 已在 1024 媒体查询中清除 */
     }
 
     .collapse-content p {

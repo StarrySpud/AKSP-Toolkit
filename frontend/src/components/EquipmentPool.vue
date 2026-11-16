@@ -343,13 +343,20 @@
     font-size: 12px;
   }
 
+  @media (max-width: 1024px) {
+    .equip-grid {
+      /* 堆叠布局下取消内部滚动：随页面自然滚动，避免手指落在装备池
+         时只滚装备池不滚页面 */
+      max-height: none;
+      min-height: 0;
+      overflow-y: visible;
+      flex: 0 0 auto;
+    }
+  }
+
   @media (max-width: 768px) {
     .equip-grid {
       grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-      max-height: none;
-      min-height: 40vh;
-      /* 随页面滚动，不在内部卡一层滚动区 */
-      overflow-y: visible;
     }
 
     .card-icon {
