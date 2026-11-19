@@ -1,5 +1,5 @@
 <template>
-  <section class="operator-pool">
+  <section class="operator-pool" :class="{ 'toolkit-pool': separateBan }">
     <!-- 筛选区（可折叠） -->
     <div class="filter-panel">
       <div class="filter-head">
@@ -10,6 +10,8 @@
         />
 
         <div class="head-actions">
+          <ModuleHelp v-if="separateBan" label="干员池"
+            text="单击干员购入，双击切换终端标签。可拖到持有槽或目标阵容，也可按 Alt+Enter 加到目标阵容。Ban 只筛选干员池，干员的所有盟约都被 Ban 时才移出池子。已持有干员仍可上场和激活盟约。" />
           <button
             type="button"
             class="collapse-btn"
@@ -32,15 +34,14 @@
             自选干员
           </button>
         </div>
-      </div>
-
-      <!-- 折叠内容 -->
-      <div
-        v-show="!filterCollapsed"
-        class="filter-body"
-      >
-        <!-- 视图切换：只在筛选展开时出现 -->
-        <div class="icon-filter-row view-row">
+        <button v-if="separateBan"
+          type="button"
+          class="chip terminal-filter-btn"
+          :class="{ active: terminalOnly }"
+          :aria-pressed="terminalOnly"
+          @click="terminalOnly = !terminalOnly"
+        >仅看终端干员</button>
+        <div v-show="!filterCollapsed" class="icon-filter-row view-row">
           <span class="row-label">视图</span>
           <div
             class="view-switch"
@@ -51,6 +52,7 @@
               type="button"
               class="view-btn"
               :class="{ active: filterView === 'icon' }"
+              :aria-pressed="filterView === 'icon'"
               title="图标筛选"
               @click="filterView = 'icon'"
             >
@@ -60,6 +62,7 @@
               type="button"
               class="view-btn"
               :class="{ active: filterView === 'text' }"
+              :aria-pressed="filterView === 'text'"
               title="文字筛选"
               @click="filterView = 'text'"
             >
@@ -67,7 +70,10 @@
             </button>
           </div>
         </div>
+      </div>
 
+      <!-- 折叠内容 -->
+      <div v-show="!filterCollapsed" class="filter-body">
         <!-- 阶数 -->
         <div class="icon-filter-row">
           <span class="row-label">阶数</span>
@@ -91,7 +97,7 @@
           v-if="coreCovenants.length"
           class="icon-filter-row"
         >
-          <span class="row-label">阵营</span>
+          <span class="row-label">{{ separateBan ? "核心盟约" : "阵营" }}</span>
 
           <div
             v-if="filterView === 'icon'"
@@ -104,7 +110,7 @@
               class="cov-icon"
               :class="{
                 active: selectedMainCov === name,
-                banned: bannedCovenants.includes(name),
+                banned: !separateBan && bannedCovenants.includes(name),
               }"
               v-on="covenantHoverEvents(name)"
               @click="toggleCovState(name, selectedMainCov, (v) => (selectedMainCov = v))"
@@ -128,7 +134,7 @@
               class="chip"
               :class="{
                 active: selectedMainCov === name,
-                banned: bannedCovenants.includes(name),
+                banned: !separateBan && bannedCovenants.includes(name),
               }"
               v-on="covenantHoverEvents(name)"
               @click="toggleCovState(name, selectedMainCov, (v) => (selectedMainCov = v))"
@@ -143,8 +149,8 @@
           v-if="additionalCovenants.length"
           class="icon-filter-row"
         >
-          <span class="row-label">盟约</span>
-          <span class="cov-hint">点两下 Ban</span>
+          <span class="row-label">{{ separateBan ? "附加盟约" : "盟约" }}</span>
+          <span v-if="!separateBan" class="cov-hint">点两下 Ban</span>
 
           <div
             v-if="filterView === 'icon'"
@@ -157,7 +163,7 @@
               class="cov-icon"
               :class="{
                 active: selectedSubCov === name,
-                banned: bannedCovenants.includes(name),
+                banned: !separateBan && bannedCovenants.includes(name),
               }"
               v-on="covenantHoverEvents(name)"
               @click="toggleCovState(name, selectedSubCov, (v) => (selectedSubCov = v))"
@@ -181,7 +187,7 @@
               class="chip"
               :class="{
                 active: selectedSubCov === name,
-                banned: bannedCovenants.includes(name),
+                banned: !separateBan && bannedCovenants.includes(name),
               }"
               v-on="covenantHoverEvents(name)"
               @click="toggleCovState(name, selectedSubCov, (v) => (selectedSubCov = v))"
@@ -225,6 +231,38 @@
             </button>
           </div>
         </div>
+
+        <section v-if="separateBan" class="ban-section" aria-labelledby="pool-ban-title">
+          <header class="ban-heading">
+            <h3 id="pool-ban-title">Ban<span v-if="bannedCovenants.length">（{{ bannedCovenants.length }}）</span></h3>
+            <button
+              type="button"
+              class="ban-toggle"
+              :aria-label="banCollapsed ? '展开 Ban' : '收起 Ban'"
+              :aria-expanded="!banCollapsed"
+              aria-controls="pool-ban-groups"
+              @click="banCollapsed = !banCollapsed"
+            ><span class="ban-triangle" aria-hidden="true"></span></button>
+          </header>
+          <div v-show="!banCollapsed" id="pool-ban-groups">
+            <div v-for="group in banGroups" :key="group.label" class="icon-filter-row" role="group" :aria-label="`Ban ${group.label}`">
+              <span class="row-label">{{ group.label }}</span>
+              <div class="chip-list">
+                <button
+                  v-for="name in group.names"
+                  :key="name"
+                  type="button"
+                  class="chip"
+                  :class="{ banned: bannedCovenants.includes(name) }"
+                  :aria-label="`Ban ${name}`"
+                  :aria-pressed="bannedCovenants.includes(name)"
+                  v-on="covenantHoverEvents(name)"
+                  @click="toggleBan(name)"
+                >{{ name }}</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- 已选筛选摘要（折叠时也保留，便于知道当前生效条件） -->
@@ -264,7 +302,7 @@
     >
       <span class="pool-toggle-title">干员池</span>
       <span class="pool-toggle-count">{{ filteredPool.length }}</span>
-      <span class="pool-toggle-hint">{{
+      <span v-if="!separateBan" class="pool-toggle-hint">{{
         isPoolCollapsed ? "已收起，点击展开" : "点击收起"
       }}</span>
       <span class="pool-toggle-arrow">▼</span>
@@ -279,13 +317,21 @@
         :group="{ name: 'ops', pull: 'clone', put: false }"
         :sort="false"
         class="pool-grid"
-        :disabled="isMobile"
+        :disabled="isMobile || separateBan"
       >
         <div
           v-for="op in filteredPool"
           :key="op.id"
           class="op-unit"
-          @click="addToTeam(op)"
+          :class="{ 'terminal-operator': terminalSet.has(op.name) }"
+          :draggable="separateBan ? true : undefined"
+          :tabindex="separateBan ? 0 : undefined"
+          :role="separateBan ? 'button' : undefined"
+          :aria-keyshortcuts="separateBan ? 'Alt+Enter Shift+Enter' : undefined"
+          @dragstart="handleOperatorDrag($event, op)"
+          @keydown="handleOperatorKeydown($event, op)"
+          @click="handleOperatorClick($event, op)"
+          @dblclick="handleOperatorDoubleClick(op)"
           @mouseenter="hoverTraits($event, op)"
           @mousemove="moveTraitTooltip"
           @mouseleave="hideTraitTooltip"
@@ -296,6 +342,7 @@
           />
           <span class="name-label">{{ op.name }}</span>
           <span class="tier-tag">{{ getTier(op) }}</span>
+          <span v-if="terminalSet.has(op.name)" class="terminal-tag" title="终端干员">◆ 终端</span>
           <span
             v-if="op.isSelfOperator"
             class="self-tag"
@@ -309,13 +356,14 @@
         v-if="filteredPool.length === 0"
         class="pool-empty"
       >
-        <p class="empty-title">没有符合条件的干员</p>
-        <p class="empty-hint">减少或清除筛选条件试试</p>
+        <p class="empty-title">{{ terminalOnly ? "没有符合条件的终端干员" : "没有符合条件的干员" }}</p>
+        <p v-if="!separateBan" class="empty-hint">减少或清除筛选条件试试</p>
       </div>
     </div>
 
     <AddOpPanel
       :show="showAddOpModal"
+      :compact-help="separateBan"
       :selected-operators="selectedSelfOperators"
       @close="showAddOpModal = false"
       @confirm="handleSelfOperatorsConfirm"
@@ -324,6 +372,8 @@
 </template>
 
 <script setup>
+  import ModuleHelp from "./ModuleHelp.vue";
+  import { startOperatorDrag } from "../AKSP-Toolkit/operatorDrag.js";
   import { ref, computed, onMounted, onUnmounted, watch } from "vue";
   import { VueDraggable } from "vue-draggable-plus";
 
@@ -333,6 +383,7 @@
     getOperatorCovenants,
     getOperatorTier,
     getOperatorTraits,
+    isOperatorBanned,
   } from "@/data/versions.js";
   import { useGameVersion } from "@/composables/useGameVersion.js";
   import {
@@ -397,7 +448,19 @@
     }
   };
 
-  const emit = defineEmits(["addToTeam"]);
+  const props = defineProps({
+    separateBan: Boolean,
+    terminalNames: { type: Array, default: () => [] },
+  });
+  const emit = defineEmits(["addToTeam", "available-pool", "toggle-terminal", "add-target-operator"]);
+  const terminalSet = computed(() => new Set(props.terminalNames));
+  const terminalOnly = ref(false);
+  const banCollapsed = ref(false);
+  let pendingClick;
+  const banGroups = computed(() => [
+    { label: "核心盟约", names: coreCovenants.value },
+    { label: "附加盟约", names: additionalCovenants.value },
+  ]);
 
   /** 单选切换：点击已选项则取消，否则选中 */
   const toggleFilter = (current, value, setter) => {
@@ -414,6 +477,10 @@
    * 已 Ban → 再点一下 = 取消 Ban。
    */
   const toggleCovState = (cov, currentSelected, setter) => {
+    if (props.separateBan) {
+      toggleFilter(currentSelected, cov, setter);
+      return;
+    }
     if (isCoarsePointer()) {
       hideCovenantTooltip();
     }
@@ -432,6 +499,13 @@
     }
   };
 
+  const toggleBan = (name) => {
+    if (isCoarsePointer()) hideCovenantTooltip();
+    bannedCovenants.value = bannedCovenants.value.includes(name)
+      ? bannedCovenants.value.filter((covenant) => covenant !== name)
+      : [...bannedCovenants.value, name];
+  };
+
   /** 悬停盟约入口时展示效果详情（图标 / 文字 chip / Ban 列表共用） */
   const covenantHoverEvents = (name) => ({
     mouseenter: (event) => showCovenantTooltip(event, name),
@@ -442,6 +516,9 @@
   /** 当前生效的筛选项摘要，用于顶部回显与逐项取消 */
   const activeFilterList = computed(() => {
     const list = [];
+    if (terminalOnly.value) {
+      list.push({ key: "terminal", label: "仅看终端干员", clear: () => (terminalOnly.value = false) });
+    }
     if (selectedTier.value) {
       list.push({
         key: "tier",
@@ -491,6 +568,7 @@
   });
 
   const clearAllFilters = () => {
+    terminalOnly.value = false;
     selectedTier.value = "";
     selectedMainCov.value = "";
     selectedSubCov.value = "";
@@ -567,7 +645,7 @@
     if (bannedCovenants.value.length === 0 || covenants.length === 0) {
       return false;
     }
-    if (currentVersion.value.banStrategy === "faction") {
+    if (!props.separateBan && currentVersion.value.banStrategy === "faction") {
       const factionBanned = covenants.some(
         (cov) =>
           coreCovenants.value.includes(cov) &&
@@ -577,8 +655,9 @@
         return true;
       }
     }
-    return covenants.every((cov) => bannedCovenants.value.includes(cov));
+    return isOperatorBanned(covenants, bannedSet.value);
   };
+  const bannedSet = computed(() => new Set(bannedCovenants.value));
 
   /** 悬停展示干员特质与所属盟约 */
   const hoverTraits = (event, op) => {
@@ -591,8 +670,25 @@
     );
   };
 
+  const availablePool = computed(() =>
+    operatorPool.value.filter(
+      (op) => !isBanned(getOperatorCovenants(op.name, currentVersion.value)),
+    ),
+  );
+
+  if (props.separateBan) {
+    watch(
+      [currentVersionId, availablePool, bannedCovenants],
+      ([versionId, operators, banned]) => {
+        emit("available-pool", { versionId, operators, banned, allOperators: operatorPool.value });
+      },
+      { immediate: true },
+    );
+  }
+
   const filteredPool = computed(() => {
-    return operatorPool.value.filter((op) => {
+    return availablePool.value.filter((op) => {
+      if (terminalOnly.value && !terminalSet.value.has(op.name)) return false;
       const data = getOperatorConfig(op.name);
       if (!data) {
         return false;
@@ -617,14 +713,14 @@
         matchMainCov &&
         matchSubCov &&
         matchTraitType &&
-        matchTraitTrigger &&
-        !isBanned(covenants)
+        matchTraitTrigger
       );
     });
   });
 
   // 切换版本时清理已失效的筛选条件
   watch(currentVersionId, () => {
+    clearPendingClick();
     if (!coreCovenants.value.includes(selectedMainCov.value)) {
       selectedMainCov.value = "";
     }
@@ -642,9 +738,54 @@
     );
   });
 
-  const addToTeam = (op) => {
-    emit("addToTeam", op);
-  };
+  function clearPendingClick() {
+    clearTimeout(pendingClick?.timer);
+    pendingClick = undefined;
+  }
+
+  function handleOperatorClick(event, op) {
+    if (!props.separateBan || event.detail === 0) {
+      emit("addToTeam", op);
+      return;
+    }
+    if (event.detail > 1) {
+      if (pendingClick?.op.id === op.id) clearPendingClick();
+      return;
+    }
+
+    if (pendingClick) {
+      const previous = pendingClick.op;
+      clearPendingClick();
+      emit("addToTeam", previous);
+    }
+    // A native double-click delivers two click events before dblclick.
+    const timer = setTimeout(() => {
+      pendingClick = undefined;
+      emit("addToTeam", op);
+    }, 500);
+    pendingClick = { timer, op };
+  }
+
+  function handleOperatorDoubleClick(op) {
+    if (!props.separateBan) return;
+    if (pendingClick?.op.id === op.id) clearPendingClick();
+    emit("toggle-terminal", op.name);
+  }
+
+  function handleOperatorDrag(event, op) {
+    if (!props.separateBan) return;
+    if (pendingClick?.op.id === op.id) clearPendingClick();
+    startOperatorDrag(event, op.name);
+  }
+
+  function handleOperatorKeydown(event, op) {
+    if (!props.separateBan || !["Enter", " "].includes(event.key)) return;
+    if (event.key === " " && (event.altKey || event.shiftKey)) return;
+    event.preventDefault();
+    if (event.altKey) emit("add-target-operator", op.name);
+    else if (event.shiftKey) handleOperatorDoubleClick(op);
+    else emit("addToTeam", op);
+  }
 
   const handleSelfOperatorsConfirm = (operators) => {
     selectedSelfOperators.value = operators;
@@ -665,6 +806,41 @@
         isSelfOperator: true,
       }));
   };
+
+  const configurationFields = {
+    searchQuery, selectedTier, selectedMainCov, selectedSubCov,
+    selectedTraitType, selectedTraitTrigger, bannedCovenants, selectedSelfOperators,
+    filterView, filterCollapsed, poolCollapsed, terminalOnly, banCollapsed,
+  };
+
+  function savePoolPreference(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function applyConfiguration(config) {
+    clearPendingClick();
+    showAddOpModal.value = false;
+    for (const [name, state] of Object.entries(configurationFields)) state.value = config[name];
+    selectedSelfOperators.value = normalizeSelfOperators(config.selectedSelfOperators);
+    bannedCovenants.value = config.bannedCovenants.filter((name) => allCovenants.value.includes(name));
+    return [
+      savePoolPreference(SELF_OP_STORAGE_KEY, JSON.stringify(selectedSelfOperators.value)),
+      savePoolPreference(FILTER_VIEW_KEY, filterView.value),
+      savePoolPreference(FILTER_COLLAPSED_KEY, filterCollapsed.value ? "1" : "0"),
+    ].every(Boolean);
+  }
+
+  defineExpose({
+    readConfiguration: () => Object.fromEntries(
+      Object.entries(configurationFields).map(([name, state]) => [name, state.value]),
+    ),
+    applyConfiguration,
+  });
 
   onMounted(() => {
     try {
@@ -699,6 +875,7 @@
   });
 
   onUnmounted(() => {
+    clearPendingClick();
     if (!mobileMediaQuery) {
       return;
     }
@@ -713,21 +890,97 @@
   watch(
     selectedSelfOperators,
     (value) => {
-      localStorage.setItem(SELF_OP_STORAGE_KEY, JSON.stringify(value));
+      savePoolPreference(SELF_OP_STORAGE_KEY, JSON.stringify(value));
     },
     { deep: true },
   );
 
   watch(filterView, (value) => {
-    localStorage.setItem(FILTER_VIEW_KEY, value);
+    savePoolPreference(FILTER_VIEW_KEY, value);
   });
 
   watch(filterCollapsed, (value) => {
-    localStorage.setItem(FILTER_COLLAPSED_KEY, value ? "1" : "0");
+    savePoolPreference(FILTER_COLLAPSED_KEY, value ? "1" : "0");
   });
 </script>
 
 <style scoped>
+  .terminal-filter-btn {
+    white-space: nowrap;
+  }
+
+  .toolkit-pool .op-unit {
+    touch-action: manipulation;
+  }
+
+  .terminal-tag {
+    color: #ffe2ab;
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .terminal-operator img {
+    outline: 1px solid #ffe2ab;
+  }
+
+  .toolkit-pool .row-label {
+    flex-basis: 54px;
+  }
+
+  .ban-section {
+    border-block: 1px solid #3b414a;
+    padding-block: 4px 6px;
+    width: 100%;
+  }
+
+  .ban-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #a0aaba;
+  }
+
+  .ban-heading h3 {
+    margin: 0;
+    color: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .ban-toggle {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .ban-toggle:hover {
+    background: #303943;
+  }
+
+  .ban-triangle {
+    width: 0;
+    height: 0;
+    border-inline: 3.5px solid transparent;
+    border-top: 5px solid currentColor;
+  }
+
+  .ban-toggle[aria-expanded="false"] .ban-triangle {
+    transform: rotate(-90deg);
+  }
+
+  .ban-section .icon-filter-row + .icon-filter-row {
+    margin-top: 6px;
+  }
+
   /* 筛选面板 */
   .filter-panel {
     display: flex;
@@ -762,6 +1015,26 @@
     align-items: center;
     gap: 8px;
     margin-left: auto;
+  }
+
+  .operator-pool:not(.toolkit-pool) .view-row {
+    flex-basis: 100%;
+  }
+
+  .toolkit-pool .view-row {
+    align-items: center;
+    flex: 0 0 auto;
+    width: auto;
+    gap: 6px;
+  }
+
+  .toolkit-pool .view-row .row-label {
+    flex: 0 0 auto;
+    line-height: 1;
+  }
+
+  .toolkit-pool .view-switch {
+    white-space: nowrap;
   }
 
   /* 图标 / 文字 切换 */
@@ -1275,6 +1548,14 @@
       width: 100%;
       margin-left: 0;
       gap: 6px;
+    }
+
+    .toolkit-pool .head-actions {
+      width: auto;
+    }
+
+    .toolkit-pool .search-input {
+      flex-basis: 110px;
     }
 
     .view-btn,

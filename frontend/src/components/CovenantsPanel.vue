@@ -11,7 +11,7 @@
       class="cov-item"
       :class="{
         'is-active':
-          presentCovCounts[name] >= covenants[name]?.activateCount,
+          (activationCounts?.[name] ?? presentCovCounts[name] ?? 0) >= covenants[name]?.activateCount,
         'is-advanced': advancedCovLevels[name] > 0,
         'is-advanced-2': advancedCovLevels[name] > 1,
       }"
@@ -25,7 +25,7 @@
           :src="getIconUrl(name)"
           @error="handleImgError"
         />
-        <span class="badge">{{ presentCovCounts[name] }}</span>
+        <span class="badge">{{ presentCovCounts[name] ?? 0 }}</span>
         <span
           v-if="morphCovCounts && morphCovCounts[name]"
           class="morph-tag"
@@ -34,6 +34,7 @@
         >
       </div>
       <span class="cov-name">{{ name }}</span>
+      <small v-if="showLevels" class="cov-level">Lv.{{ (advancedCovLevels[name] ?? 0) + 1 }}</small>
     </div>
   </section>
 
@@ -67,10 +68,12 @@
       type: Object,
       required: true,
     },
+    activationCounts: { type: Object, default: undefined },
     advancedCovLevels: {
       type: Object,
       required: true,
     },
+    showLevels: { type: Boolean, default: false },
     /** 其中由变形同构体贡献的人数：{ 盟约名: 人数 } */
     morphCovCounts: {
       type: Object,
@@ -82,6 +85,7 @@
   const hoverCovenant = (event, name) => {
     showCovenantTooltip(event, name, {
       presentCount: props.presentCovCounts?.[name] ?? 0,
+      activated: props.activationCounts && (props.activationCounts[name] ?? 0) >= covenants.value[name]?.activateCount,
       advanced: props.advancedCovLevels?.[name] || 0,
       morphCount: props.morphCovCounts?.[name] || 0,
     });

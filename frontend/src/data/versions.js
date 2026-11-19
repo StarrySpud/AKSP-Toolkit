@@ -125,6 +125,10 @@ export function getOperatorCovenants(name, version) {
   return matched.length > 0 ? matched : ["协防干员"];
 }
 
+export function isOperatorBanned(covenants, banned) {
+  return covenants.length > 0 && covenants.every((covenant) => banned.has(covenant));
+}
+
 /**
  * 解析干员的有效盟约（含装备加成）
  * 「变形同构体」与指定装备同携时，携带者视为对应盟约成员
@@ -164,6 +168,10 @@ export function getOperatorTraits(name, version) {
   return (
     version?.operators?.[name]?.traits || selfOpConfig[name]?.traits || []
   ).filter(Boolean);
+}
+
+export function hasStackingTrait(name, version) {
+  return getOperatorTraits(name, version).some(({ type }) => type === "持续叠加");
 }
 
 /**

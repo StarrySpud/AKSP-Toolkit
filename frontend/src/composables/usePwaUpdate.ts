@@ -16,7 +16,7 @@ let initialized = false;
 
 /** 注册 Service Worker（仅生产构建；dev 下不启用，避免缓存干扰热更新） */
 export async function initServiceWorker(): Promise<void> {
-  if (initialized || import.meta.env.DEV) {
+  if (initialized || import.meta.env.DEV || import.meta.env.MODE === "launcher") {
     return;
   }
   initialized = true;

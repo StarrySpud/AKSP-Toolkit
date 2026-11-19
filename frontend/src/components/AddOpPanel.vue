@@ -6,14 +6,14 @@
     @close="closeModal"
   >
     <div class="self-op-panel">
-      <p class="desc">
+      <p v-if="!compactHelp" class="desc">
         点击干员可在未选择、五阶、六阶之间切换。五阶和六阶分别最多选择 2 名。
       </p>
       <p
-        v-if="currentVersion.selfOperatorStrategy === 'faction'"
+        v-if="!compactHelp && currentVersion.selfOperatorStrategy === 'faction'"
         class="desc version-desc"
       >
-        当前为「{{ currentVersion.label }}」：自选干员按阵营匹配该版本的核心盟约，匹配不到时归为【协防干员】。
+        当前为「{{ currentVersion.label }}」：自选干员会匹配该版本的核心盟约，匹配不到时归为【协防干员】。
       </p>
 
       <div class="toolbar">
@@ -24,6 +24,7 @@
           placeholder="搜索自选干员名称..."
         />
         <div class="toolbar-actions">
+          <ModuleHelp v-if="compactHelp" label="自选干员" :text="selectionHelp" />
           <span class="count-tag">五阶 {{ selectedTierFive.length }}/2</span>
           <span class="count-tag">六阶 {{ selectedTierSix.length }}/2</span>
           <button
@@ -95,14 +96,20 @@
   import { computed, ref, watch } from "vue";
 
   import BaseModal from "./BaseModal.vue";
+  import ModuleHelp from "./ModuleHelp.vue";
   import selfOpConfig from "../data/selfOp.json";
   import { useGameVersion } from "@/composables/useGameVersion.js";
   import { getAvatarUrl } from "@/utils/index.js";
 
   const { currentVersion } = useGameVersion();
+  const selectionHelp = computed(() => [
+    "点击干员在未选择、五阶、六阶之间切换，每阶最多 2 名。",
+    currentVersion.value.selfOperatorStrategy === "faction" ? "自选干员按本版本匹配核心盟约，匹配不到时归为「协防干员」。" : "",
+  ].filter(Boolean).join("\n"));
 
   const props = defineProps({
     show: Boolean,
+    compactHelp: Boolean,
     selectedOperators: {
       type: Array,
       default: () => [],

@@ -1,7 +1,14 @@
 import { createApp } from 'vue'
 import './style.css'
-import App from './App.vue'
+import App from './AKSP-Toolkit/AKSP-Toolkit.vue'
 import { initServiceWorker } from './composables/usePwaUpdate'
+
+// Vite may serve this single-page entry at nested URLs via its HTML fallback.
+const basePath = import.meta.env.BASE_URL
+const { pathname, search, hash } = window.location
+if (pathname !== basePath) {
+  window.history.replaceState(window.history.state, '', basePath + search + hash)
+}
 
 createApp(App).mount('#app')
 

@@ -31,7 +31,7 @@
         </button>
       </div>
 
-      <p class="equip-hint">
+      <p v-if="!browseOnly" class="equip-hint">
         点击放入编队下方的临时装备池，或直接把图标拖到干员头像上
       </p>
 
@@ -42,10 +42,10 @@
           type="button"
           class="equip-card"
           :class="{ staged: staged.includes(item.name) }"
-          draggable="true"
+          :draggable="!browseOnly"
           :title="`${item.name}｜${item.base}`"
           @dragstart="handleDragStart($event, item.name)"
-          @click="emit('stage', item.name)"
+          @click="!browseOnly && emit('stage', item.name)"
         >
           <span class="card-icon">
             <img
@@ -88,6 +88,7 @@
   const props = defineProps({
     /** 已在临时装备池里的装备名，用于角标提示 */
     staged: { type: Array, default: () => [] },
+    browseOnly: Boolean,
   });
 
   const emit = defineEmits(["stage"]);

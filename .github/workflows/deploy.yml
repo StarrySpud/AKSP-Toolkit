@@ -1,29 +1,45 @@
-name: 部署前端到 GitHub Pages
+name: Deploy AKSP-Toolkit to GitHub Pages
 
 on:
-  push:
-    branches: [ master ] # 当你向 main 分支推送代码时触发
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 设置 Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: 安装并打包前端
-        run: |
-          cd frontend
-          npm install
-          npm run build
-
-      - name: 发布到 GitHub Pages 分支
-        uses: JamesIves/github-pages-deploy-action@v4
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test -- --run
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
         with:
-          folder: frontend/dist # 告诉它打包后的文件在子文件夹里
-          branch: gh-pages # 自动部署到这个分支
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

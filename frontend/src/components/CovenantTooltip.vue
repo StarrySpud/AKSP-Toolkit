@@ -24,7 +24,7 @@
         <span
           v-if="state.presentCount !== null"
           class="meta-item"
-          :class="{ reached: state.presentCount >= covenant.activateCount }"
+          :class="{ reached: state.activated ?? (state.presentCount >= covenant.activateCount) }"
         >
           编队 {{ state.presentCount }} 名
         </span>

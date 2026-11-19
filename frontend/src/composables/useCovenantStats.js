@@ -16,16 +16,32 @@ import {
 import { useGameVersion } from "./useGameVersion.js";
 
 /** 调和类盟约会为核心盟约额外 +1 人数 */
-const HARMONY_COVENANT = "调和";
+export const HARMONY_COVENANT = "调和";
+const COVENANTS_FROM_HOLDING = ["远见", "奇迹", "投资人"];
+
+export function getHeldCovenantMembers(held, version) {
+  const members = new Map();
+  for (const operator of held) {
+    const name = typeof operator === "string" ? operator : operator.name;
+    const covenants = getEffectiveOperatorCovenants(operator, version);
+    for (const covenant of COVENANTS_FROM_HOLDING) {
+      if (!Object.hasOwn(version.covenants, covenant) || !covenants.includes(covenant)) continue;
+      if (!members.has(covenant)) members.set(covenant, new Set());
+      members.get(covenant).add(name);
+    }
+  }
+  return members;
+}
 
 /**
  * 统计编队中各盟约的数量
  * @param {Array} team - 编队数组 [{ name, avatar }]
  * @param {Object} version - 当前版本数据（含 covenants / operators）
- * @returns {Object} 盟约名称 -> 数量
+ * @returns {Object} 原有人数、已部署人数和不同上场干员数
  */
-function countBaseCovenants(team, version) {
-  const stats = {};
+function countBaseCovenants(team, version, heldMembers = new Map()) {
+  const stats = Object.fromEntries([...heldMembers].map(([covenant, names]) => [covenant, names.size]));
+  const deployedCounts = {};
   const seen = new Set();
 
   (team || []).forEach((op) => {
@@ -34,12 +50,17 @@ function countBaseCovenants(team, version) {
     seen.add(name);
 
     // 含装备加成：变形同构体可让携带者额外视为某个盟约成员
-    getEffectiveOperatorCovenants(op, version).forEach((cov) => {
-      stats[cov] = (stats[cov] || 0) + 1;
-    });
+    const memberships = new Set(getEffectiveOperatorCovenants(op, version));
+    for (const [covenant, names] of heldMembers) {
+      if (names.has(name)) memberships.add(covenant);
+    }
+    for (const covenant of memberships) {
+      deployedCounts[covenant] = (deployedCounts[covenant] ?? 0) + 1;
+      if (!heldMembers.get(covenant)?.has(name)) stats[covenant] = (stats[covenant] ?? 0) + 1;
+    }
   });
 
-  return stats;
+  return { counts: stats, deployedCounts, deployedSize: seen.size };
 }
 
 /**
@@ -117,6 +138,38 @@ function getActivatedCovList(presentCovCounts, covenants) {
   return activeCovList;
 }
 
+function getAvailableCovenantCounts(team, version, extraCovenantCounts = {}, heldMembers) {
+  const { counts: baseCounts, deployedCounts, deployedSize } = countBaseCovenants(team, version, heldMembers);
+  const withExtras = { ...baseCounts };
+  for (const [name, count] of Object.entries(extraCovenantCounts)) {
+    if (Object.hasOwn(version.covenants, name)) {
+      const granted = Math.min(count, deployedSize - (deployedCounts[name] ?? 0));
+      if (granted > 0) withExtras[name] = (withExtras[name] ?? 0) + granted;
+    }
+  }
+  return { counts: applyHarmonyBonus(baseCounts, version.covenants),
+    activationCounts: applyHarmonyBonus(withExtras, version.covenants) };
+}
+
+export function countAvailableCovenants(team, version, extraCovenantCounts, heldMembers) {
+  return getAvailableCovenantCounts(team, version, extraCovenantCounts, heldMembers).activationCounts;
+}
+
+export function getActivatedCovenantNames(team, version, extraCovenantCounts) {
+  return getActivatedCovList(countAvailableCovenants(team, version, extraCovenantCounts), version.covenants)
+    .map(({ name }) => name);
+}
+
+export function summarizeRecommendedCovenants(team, version, extraCovenantCounts, heldMembers) {
+  const { counts, activationCounts } = getAvailableCovenantCounts(team, version, extraCovenantCounts, heldMembers);
+  return {
+    activeNames: getActivatedCovList(activationCounts, version.covenants).map(({ name }) => name),
+    counts,
+    activationCounts,
+    advancedLevels: getAdvancedCovLevels(activationCounts, version.covenants),
+  };
+}
+
 /**
  * 提取盟约中「在场 N 名不同干员」类进阶效果的阈值
  * @param {string} name - 盟约名称
@@ -128,12 +181,19 @@ function getAdvancedThresholds(name, covenants) {
   const thresholds = effects
     .map((effect) => {
       const condition = effect.condition || "";
-      const matched = condition.match(/^在场(\d+)名不同/);
-      return matched ? Number(matched[1]) : null;
+      const matched = condition.match(/^在场(\d+)名(?:不同的?(?:【([^】]+)】)?|【([^】]+)】)干员/);
+      const requiredCovenant = matched?.[2] ?? matched?.[3];
+      return matched && (!requiredCovenant || requiredCovenant === name) ? Number(matched[1]) : null;
     })
     .filter((value) => value !== null);
 
   return [...new Set(thresholds)].sort((a, b) => a - b);
+}
+
+export function getCovenantMemberThresholds(name, covenants) {
+  const activation = covenants[name]?.activateCount;
+  if (!Number.isInteger(activation) || activation < 1) return [];
+  return [activation, ...getAdvancedThresholds(name, covenants).filter((threshold) => threshold > activation)];
 }
 
 /**
@@ -146,7 +206,7 @@ function getAdvancedCovLevels(presentCovCounts, covenants) {
   const levels = {};
 
   Object.keys(presentCovCounts).forEach((name) => {
-    const thresholds = getAdvancedThresholds(name, covenants);
+    const thresholds = getCovenantMemberThresholds(name, covenants).slice(1);
     levels[name] = thresholds.filter(
       (threshold) => presentCovCounts[name] >= threshold,
     ).length;
@@ -191,7 +251,7 @@ export function useCovenantStats(teamRef, versionSource) {
   const covenants = computed(() => version.value.covenants || {});
 
   const baseCovCounts = computed(() =>
-    countBaseCovenants(teamRef.value, version.value),
+    countBaseCovenants(teamRef.value, version.value).counts,
   );
 
   // 其中由「变形同构体」带来的额外人数，仅用于界面标注

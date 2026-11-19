@@ -2,7 +2,7 @@
   <section class="my-team">
     <div class="panel-header">
       <h3>当前编队 ({{ team.length }}/{{ teamLimit }})</h3>
-      <div class="header-actions">
+      <div v-show="!collapsed" class="header-actions">
         <div class="limit-setter">
           <label>上限:</label>
           <input
@@ -28,148 +28,161 @@
           清空
         </button>
       </div>
+      <button
+        v-if="collapsible"
+        type="button"
+        class="team-toggle"
+        :class="{ 'team-toggle--collapsed': collapsed }"
+        :aria-label="collapsed ? '展开当前编队' : '收起当前编队'"
+        :title="collapsed ? '展开当前编队' : '收起当前编队'"
+        :aria-expanded="!collapsed"
+        :aria-controls="contentId"
+        @click="toggleCollapsed"
+      ><span aria-hidden="true"></span></button>
     </div>
 
-    <CovenantsPanel
-      :presentCovList="presentCovList"
-      :presentCovCounts="presentCovCounts"
-      :advanced-cov-levels="advancedCovLevels"
-      :morph-cov-counts="morphCovCounts"
-    ></CovenantsPanel>
+    <div v-show="!collapsed" :id="collapsible ? contentId : undefined" class="team-content">
+      <CovenantsPanel
+        :presentCovList="presentCovList"
+        :presentCovCounts="presentCovCounts"
+        :advanced-cov-levels="advancedCovLevels"
+        :morph-cov-counts="morphCovCounts"
+      ></CovenantsPanel>
 
-    <p
-      v-if="missingCount > 0"
-      class="version-hint"
-    >
-      当前版本「{{ currentVersion.shortLabel }}」干员池中没有 {{ missingCount }}
-      名已选干员（红色虚线标记），这些干员不参与盟约层数统计
-    </p>
+      <p
+        v-if="missingCount > 0"
+        class="version-hint"
+      >
+        当前版本「{{ currentVersion.shortLabel }}」干员池中没有 {{ missingCount }}
+        名已选干员（红色虚线标记），这些干员不参与盟约层数统计
+      </p>
 
-    <VueDraggable
-      v-model="teamModel"
-      group="ops"
-      class="drag-area team-grid"
-      :delay="200"
-      :delay-on-touch-only="true"
-      :touch-start-threshold="10"
-      :fallback-tolerance="8"
-    >
-      <div
-        v-for="(op, index) in team"
-        :key="index"
-        class="op-unit"
-        :class="{
-          'op-missing': isOpMissing(op),
-          'drop-ready': dropHint,
-          'drag-over': dragOverIndex === index,
-        }"
-        @mouseenter="hoverTraits($event, op)"
-        @mousemove="moveTraitTooltip"
-        @mouseleave="hideTraitTooltip"
-        @dragenter.prevent="handleDragOver($event, index)"
-        @dragover.prevent="handleDragOver($event, index)"
-        @dragleave="handleDragLeave($event, index)"
-        @drop.prevent="handleDrop($event, index)"
+      <VueDraggable
+        v-model="teamModel"
+        group="ops"
+        class="drag-area team-grid"
+        :delay="200"
+        :delay-on-touch-only="true"
+        :touch-start-threshold="10"
+        :fallback-tolerance="8"
       >
         <div
-          class="img-container"
-          @click="handleOpClick(index)"
+          v-for="(op, index) in team"
+          :key="index"
+          class="op-unit"
+          :class="{
+            'op-missing': isOpMissing(op),
+            'drop-ready': dropHint,
+            'drag-over': dragOverIndex === index,
+          }"
+          @mouseenter="hoverTraits($event, op)"
+          @mousemove="moveTraitTooltip"
+          @mouseleave="hideTraitTooltip"
+          @dragenter.prevent="handleDragOver($event, index)"
+          @dragover.prevent="handleDragOver($event, index)"
+          @dragleave="handleDragLeave($event, index)"
+          @drop.prevent="handleDrop($event, index)"
         >
-          <img
-            :src="op.avatar"
-            @error="handleImgError"
-          />
-          <span
-            v-if="op.isSelfOperator"
-            class="self-tag"
-          >
-            自选
-          </span>
-          <button
-            class="remove-btn"
-            @click.stop="removeFromTeam(index)"
-          >
-            ×
-          </button>
-
-          <!-- 装备角标：只显示已装备的槽位，点击卸下 -->
           <div
-            v-if="equippedNames(op).length"
-            class="equip-badges"
+            class="img-container"
+            @click="handleOpClick(index)"
           >
+            <img
+              :src="op.avatar"
+              @error="handleImgError"
+            />
             <span
-              v-for="(equip, slot) in equippedNames(op)"
-              :key="slot"
-              class="equip-badge"
-              :title="`${equip}（点击卸下）`"
-              @click.stop="removeEquipment(index, slot)"
+              v-if="op.isSelfOperator"
+              class="self-tag"
             >
-              <img
-                :src="getEquipmentIconUrl(equip)"
-                :alt="equip"
-                @error="handleImgError"
-              />
+              自选
             </span>
-          </div>
-        </div>
-        <span class="name-label">{{ op.name }}</span>
-      </div>
-    </VueDraggable>
-
-    <!-- 临时装备池：贴在编队干员正下方，由父组件提供内容 -->
-    <slot name="staging" />
-
-    <EquipmentPicker
-      v-if="equipOperator"
-      :show="equipTarget !== null"
-      :operator-name="equipOperator.name"
-      :equipments="equipOperator.equipments || []"
-      :initial-slot="equipSlot"
-      @update:equipments="updateEquipments"
-      @close="closeEquipmentPicker"
-    />
-
-    <div
-      class="active-effects-wrap"
-      v-if="activeCovList.length > 0"
-    >
-      <div
-        class="collapse-header"
-        @click="isEffectsExpanded = !isEffectsExpanded"
-      >
-        <span>已激活效果详情 ({{ activeCovList.length }})</span>
-        <span
-          class="arrow"
-          :class="{ rotated: isEffectsExpanded }"
-          >▼</span
-        >
-      </div>
-      <div
-        class="collapse-content"
-        v-show="isEffectsExpanded"
-      >
-        <ul>
-          <li
-            v-for="cov in activeCovList"
-            :key="cov.name"
-          >
-            <span class="gold">【{{ cov.name }}】</span>
-            <p
-              class="activatedListDetails"
-              v-for="(effect, i) in cov.effects"
-              :key="i"
+            <button
+              class="remove-btn"
+              @click.stop="removeFromTeam(index)"
             >
-              · {{ effect.condition }} {{ effect.description }}
-            </p>
-          </li>
-        </ul>
+              ×
+            </button>
+
+            <!-- 装备角标：只显示已装备的槽位，点击卸下 -->
+            <div
+              v-if="equippedNames(op).length"
+              class="equip-badges"
+            >
+              <span
+                v-for="(equip, slot) in equippedNames(op)"
+                :key="slot"
+                class="equip-badge"
+                :title="`${equip}（点击卸下）`"
+                @click.stop="removeEquipment(index, slot)"
+              >
+                <img
+                  :src="getEquipmentIconUrl(equip)"
+                  :alt="equip"
+                  @error="handleImgError"
+                />
+              </span>
+            </div>
+          </div>
+          <span class="name-label">{{ op.name }}</span>
+        </div>
+      </VueDraggable>
+
+      <!-- 临时装备池：贴在编队干员正下方，由父组件提供内容 -->
+      <slot name="staging" />
+
+      <EquipmentPicker
+        v-if="equipOperator"
+        :show="equipTarget !== null"
+        :operator-name="equipOperator.name"
+        :equipments="equipOperator.equipments || []"
+        :initial-slot="equipSlot"
+        @update:equipments="updateEquipments"
+        @close="closeEquipmentPicker"
+      />
+
+      <div
+        class="active-effects-wrap"
+        v-if="activeCovList.length > 0"
+      >
+        <div
+          class="collapse-header"
+          @click="isEffectsExpanded = !isEffectsExpanded"
+        >
+          <span>已激活效果详情 ({{ activeCovList.length }})</span>
+          <span
+            class="arrow"
+            :class="{ rotated: isEffectsExpanded }"
+            >▼</span
+          >
+        </div>
+        <div
+          class="collapse-content"
+          v-show="isEffectsExpanded"
+        >
+          <ul>
+            <li
+              v-for="cov in activeCovList"
+              :key="cov.name"
+            >
+              <span class="gold">【{{ cov.name }}】</span>
+              <p
+                class="activatedListDetails"
+                v-for="(effect, i) in cov.effects"
+                :key="i"
+              >
+                · {{ effect.condition }} {{ effect.description }}
+              </p>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-  import { ref, computed, toRef } from "vue";
+  import { ref, computed, toRef, useId } from "vue";
   import { VueDraggable } from "vue-draggable-plus";
   import CovenantsPanel from "./CovenantsPanel.vue";
   import EquipmentPicker from "./EquipmentPicker.vue";
@@ -199,6 +212,7 @@
   const props = defineProps({
     team: Array,
     teamLimit: Number,
+    collapsible: Boolean,
     /** 临时装备池里有装备时，头像显示可放置提示 */
     dropHint: Boolean,
     /** 已选中的装备（点选装备后再点干员即可装备） */
@@ -206,6 +220,13 @@
   });
 
   const { currentVersion } = useGameVersion();
+  const collapsed = ref(false);
+  const contentId = useId();
+
+  function toggleCollapsed() {
+    collapsed.value = !collapsed.value;
+    if (collapsed.value) closeEquipmentPicker();
+  }
 
   const {
     presentCovList,
@@ -377,6 +398,15 @@
 
   const isEffectsExpanded = ref(false);
 
+  defineExpose({
+    readConfiguration: () => ({ collapsed: collapsed.value, effectsExpanded: isEffectsExpanded.value }),
+    applyConfiguration(config) {
+      collapsed.value = config.collapsed;
+      isEffectsExpanded.value = config.effectsExpanded;
+      closeEquipmentPicker();
+    },
+  });
+
   const teamLimitModel = computed({
     get: () => props.teamLimit,
     set: (value) => emit("update:teamLimit", value),
@@ -403,7 +433,8 @@
 </script>
 
 <style scoped>
-  .my-team {
+  .my-team,
+  .team-content {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -429,6 +460,32 @@
     gap: 8px;
     margin-left: auto;
   }
+
+  .team-toggle {
+    display: grid;
+    place-items: center;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #3b4959;
+    border-radius: 6px;
+    background: #222d3a;
+    color: #c5d2df;
+    cursor: pointer;
+  }
+
+  .team-toggle:hover { background: #304153; }
+  .team-toggle--collapsed { margin-left: auto; }
+  .team-toggle span {
+    width: 7px;
+    height: 7px;
+    border: solid currentColor;
+    border-width: 0 0 2px 2px;
+    transform: rotate(135deg);
+  }
+
+  .team-toggle--collapsed span { transform: rotate(-45deg); }
 
   .limit-setter {
     display: flex;

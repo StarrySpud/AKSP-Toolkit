@@ -1,24 +1,29 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
-import { createHtmlPlugin } from "vite-plugin-html";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  // GitHub Pages 部署在 /Arknights-alliance-tool/ 子路径下，
-  // Service Worker 的 scope 与 manifest 的 start_url 都基于该 base 计算
-  base: "/Arknights-alliance-tool/",
+  // 资源路径与 PWA scope 使用 AKSP-Toolkit 的项目子路径。
+  base: "/AKSP-Toolkit/",
+  build: {
+    rolldownOptions: {
+      input: {
+        toolkit: path.resolve(__dirname, "index.html"),
+        backup: path.resolve(__dirname, "backup.html"),
+      },
+    },
+  },
   plugins: [
     vue(),
-    createHtmlPlugin({}),
     VitePWA({
       // 由 src/composables/usePwaUpdate.js 手动注册，便于提示“新版本可用”
       injectRegister: false,
       registerType: "prompt",
       includeAssets: ["favicon.svg", "icons.svg"],
       manifest: {
-        name: "卫戍协议练功房",
-        short_name: "卫戍练功房",
+        name: "AKSP-Toolkit",
+        short_name: "AKSP-Toolkit",
         description: "明日方舟卫戍协议盟约、干员与编队工具",
         lang: "zh-CN",
         theme_color: "#121212",
@@ -41,6 +46,7 @@ export default defineConfig({
         // 干员头像共 14MB / 345 张，不进预缓存，改走运行时缓存
         globIgnores: ["**/resource/**"],
         cleanupOutdatedCaches: true,
+        navigateFallbackDenylist: [/\/backup\.html$/],
         runtimeCaching: [
           {
             // 头像与盟约图标：命中缓存直接返回（文件名稳定，适合 CacheFirst）

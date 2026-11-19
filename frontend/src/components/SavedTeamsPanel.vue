@@ -239,6 +239,10 @@
   const editMode = ref(false);
   const ungroupedExpanded = ref(true);
 
+  defineExpose({
+    ungroupedExpanded,
+  });
+
   /** 编队所属版本（历史存档未标记版本时归入默认版本） */
   const getTeamVersion = (teamItem) => teamItem?.version || DEFAULT_VERSION_ID;
 

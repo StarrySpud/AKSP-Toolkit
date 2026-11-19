@@ -7,6 +7,9 @@ Thumbs.db
 
 frontend/node_modules/
 frontend/dist/
+frontend/dist-launcher/
+launcher/web.zip
+release/
 frontend/.vscode/
 frontend/.env.local
 frontend/.env.*.local

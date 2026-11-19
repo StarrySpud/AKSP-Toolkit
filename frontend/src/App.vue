@@ -1,6 +1,6 @@
 <template>
-  <div class="arknights-tool">
-    <header class="app-header">
+  <div class="arknights-tool" :class="{ 'arknights-tool--toolkit': toolkit }">
+    <header v-if="!toolkit" class="app-header">
       <div class="app-title">
         <h1>卫戍协议练功房</h1>
         <p class="app-subtitle">
@@ -15,37 +15,49 @@
         </p>
       </div>
       <VersionSwitch @change="handleVersionChange" />
+      <LauncherHeartbeat />
     </header>
 
     <main class="container">
       <div class="side-bar">
         <!-- 侧边栏选择功能 -->
         <div class="tab-list">
-          <div
+          <button
+            type="button"
             class="tab-item"
             v-for="tab in visibleTabs"
             :key="tab.key"
             :class="{ active: currentTab === tab.key }"
+            :aria-pressed="currentTab === tab.key"
             @click="currentTab = tab.key"
           >
             {{ tab.label }}
-          </div>
+          </button>
         </div>
 
         <PoolPanel
-          v-if="isPoolTab"
-          @add-to-team="addToTeam"
+          ref="poolPanel"
+          v-if="toolkit || isPoolTab"
+          v-show="isPoolTab"
+          :separate-ban="toolkit"
+          :terminal-names="terminalNames"
+          @add-to-team="toolkit ? emit('buy-operator', $event.name) : addToTeam($event)"
+          @add-target-operator="emit('add-target-operator', $event)"
+          @available-pool="emit('available-pool', $event)"
+          @toggle-terminal="emit('toggle-terminal', $event)"
         />
 
         <!-- 装备池：独立标签页，点击「装备池」切到这里 -->
         <EquipmentPool
           v-if="isEquipTab"
           class="equip-page"
-          :staged="stagedEquipments"
+          :staged="toolkit ? [] : stagedEquipments"
+          :browse-only="toolkit"
           @stage="stageEquipment"
         />
 
         <SavedTeamsPanel
+          ref="savedTeamsPanel"
           v-if="currentTab === TABS.TEAM.key"
           :saved-teams="savedTeams"
           :team-collections="teamCollections"
@@ -58,10 +70,12 @@
           @delete-team="deleteTeamWrapper"
           @show-import-modal="showImportModal = true"
         />
+
       </div>
 
-      <div class="team-col">
+      <div v-if="!toolkit" class="team-col">
         <TeamPanel
+          ref="teamPanel"
           :team="team"
           :team-limit="teamLimit"
           :drop-hint="hasEquipmentPool && stagedEquipments.length > 0"
@@ -139,12 +153,12 @@
     <CovenantTooltip />
 
     <!-- Service Worker 发现新版本时的刷新提示 -->
-    <PwaUpdatePrompt />
+    <PwaUpdatePrompt v-if="!toolkit" />
   </div>
 </template>
 
 <script setup>
-  import { computed, ref, onMounted, watch } from "vue";
+  import { computed, nextTick, ref, onMounted, watch } from "vue";
 
   import PoolPanel from "./components/PoolPanel.vue";
   import EquipmentPool from "./components/EquipmentPool.vue";
@@ -155,6 +169,7 @@
   import ShareModal from "./components/ShareModal.vue";
   import ImportModal from "./components/ImportModal.vue";
   import VersionSwitch from "./components/VersionSwitch.vue";
+  import LauncherHeartbeat from "./components/LauncherHeartbeat.vue";
   import TraitTooltip from "./components/TraitTooltip.vue";
   import CovenantTooltip from "./components/CovenantTooltip.vue";
   import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue";
@@ -167,6 +182,12 @@
   import { DEFAULT_VERSION_ID, getGameVersion } from "@/data/versions.js";
   import { hasEquipmentPool as versionHasEquipmentPool } from "@/data/equipment.js";
 
+  const props = defineProps({
+    toolkit: Boolean,
+    terminalNames: { type: Array, default: () => [] },
+  });
+  const emit = defineEmits(["available-pool", "toggle-terminal", "buy-operator", "add-target-operator"]);
+
   // 游戏版本
   const { currentVersion, currentVersionId, setVersion } = useGameVersion();
 
@@ -177,6 +198,10 @@
     TEAM: { key: "team", label: "我的编队" },
   };
   const currentTab = ref(TABS.POOL.key);
+  const poolPanel = ref(null);
+  const teamPanel = ref(null);
+  const savedTeamsPanel = ref(null);
+  const legacyTeamPanel = ref({ collapsed: false, effectsExpanded: false });
   const isPoolTab = computed(() => currentTab.value === TABS.POOL.key);
   const isEquipTab = computed(() => currentTab.value === TABS.EQUIP.key);
 
@@ -190,7 +215,8 @@
   /** 没有装备数据的版本不显示「装备池」标签 */
   const visibleTabs = computed(() =>
     Object.values(TABS).filter(
-      (tab) => tab.key !== TABS.EQUIP.key || hasEquipmentPool.value,
+      (tab) => (tab.key !== TABS.EQUIP.key || hasEquipmentPool.value) &&
+        (tab.key !== TABS.TEAM.key || !props.toolkit),
     ),
   );
 
@@ -313,7 +339,9 @@
 
   // 初始化
   onMounted(() => {
-    document.title = `卫戍协议练功房 · ${currentVersion.value.shortLabel}`;
+    if (!props.toolkit) {
+      document.title = `卫戍协议练功房 · ${currentVersion.value.shortLabel}`;
+    }
     initSavedTeams();
   });
 
@@ -410,6 +438,50 @@
       codeVersion || currentVersionId.value,
     );
   };
+
+  function readConfiguration() {
+    return {
+      tab: currentTab.value,
+      teamLimit: teamLimit.value,
+      team: team.value,
+      savedTeams: savedTeams.value,
+      collections: teamCollections.value,
+      stagedEquipments: stagedEquipments.value,
+      selectedEquipment: selectedEquipment.value,
+      savedTeamsExpanded: savedTeamsPanel.value?.ungroupedExpanded ?? true,
+      teamPanel: teamPanel.value?.readConfiguration() ?? legacyTeamPanel.value,
+      pool: poolPanel.value.readConfiguration(),
+    };
+  }
+
+  async function applyConfiguration(config) {
+    closeTeamModal();
+    closeShareModal();
+    closeImportModal();
+    currentTab.value = visibleTabs.value.some(({ key }) => key === config.tab) ? config.tab : TABS.POOL.key;
+    teamLimit.value = config.teamLimit;
+    team.value = config.team;
+    savedTeams.value = config.savedTeams;
+    teamCollections.value = config.collections;
+    stagedEquipments.value = config.stagedEquipments.filter((name) =>
+      Object.hasOwn(currentVersion.value.equipments, name),
+    );
+    selectedEquipment.value = stagedEquipments.value.includes(config.selectedEquipment) ? config.selectedEquipment : "";
+    const poolSaved = poolPanel.value.applyConfiguration(config.pool);
+    legacyTeamPanel.value = config.teamPanel;
+    teamPanel.value?.applyConfiguration(config.teamPanel);
+    let teamsSaved = true;
+    try {
+      saveAllData();
+    } catch {
+      teamsSaved = false;
+    }
+    await nextTick();
+    if (savedTeamsPanel.value) savedTeamsPanel.value.ungroupedExpanded = config.savedTeamsExpanded;
+    return poolSaved && teamsSaved;
+  }
+
+  defineExpose({ readConfiguration, applyConfiguration });
 </script>
 
 <style scoped>
@@ -422,6 +494,10 @@
     overflow: hidden;
     padding: 14px 20px 14px;
     font-family: var(--sans, system-ui, sans-serif);
+  }
+
+  .arknights-tool--toolkit {
+    height: 100%;
   }
 
   .app-header {
@@ -500,6 +576,25 @@
     flex: 0 0 auto;
   }
 
+  .arknights-tool--toolkit .container {
+    flex-direction: column;
+  }
+
+  @media (min-width: 1025px) {
+    .arknights-tool--toolkit .side-bar {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .arknights-tool--toolkit .tab-list {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #11161d;
+    }
+
+  }
+
   /* 装备池作为独立页面时占满侧栏高度 */
   .equip-page {
     flex: 1 1 auto;
@@ -516,6 +611,9 @@
 
   .tab-item {
     cursor: pointer;
+    border: 0;
+    background: transparent;
+    color: inherit;
     padding: 7px 16px;
     border-radius: 6px;
     font-size: 14px;
@@ -630,6 +728,7 @@
     .tab-list {
       padding: 4px 0 10px;
       gap: 6px;
+      flex-wrap: wrap;
     }
 
     .tab-item {
