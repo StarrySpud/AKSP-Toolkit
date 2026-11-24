@@ -42,6 +42,30 @@ describe("AKSP-Toolkit 盟约分析", () => {
     }
   });
 
+  it("调和保留激活与额外人数，忽略旧配置层数且没有层数输入", () => {
+    localStorage.clear();
+    useGameVersion().setVersion("guicheng");
+    const inventory = { pieces: { 魔王: { normal: 1, promoted: 0 } }, covenantLayers: { 调和: 40, 炎: 10 } };
+    localStorage.setItem("aksp_toolkit_operator_inventory", JSON.stringify({ guicheng: inventory }));
+    const wrapper = mount(Toolkit);
+    try {
+      expect(normalizeInventory(inventory).covenantLayers).toEqual({ 炎: 10 });
+      expect(wrapper.get('[aria-label="目标盟约 调和"]').exists()).toBe(true);
+      expect(wrapper.find('[aria-label="调和层数"]').exists()).toBe(false);
+      const version = getGameVersion("guicheng");
+      const lineup = [{ name: "魔王" }, { name: "夏栎" }];
+      expect(getStackableLineupCovenants(version, lineup, ["调和", "炎"], { 调和: 40, 炎: 10 }))
+        .toEqual(new Set(["炎"]));
+      const activated = summarizeRecommendedCovenants(lineup, version);
+      expect(activated.activeNames).toContain("调和");
+      const score = (layers) => sumActivatedCovenantScore(activated, version, { weights: {}, layers, targets: new Set() });
+      expect(score({ 调和: 40 })).toBe(score({}));
+    } finally {
+      wrapper.unmount();
+      localStorage.clear();
+    }
+  });
+
   it("优先叠层为优推和推荐阵容棋子各应用一次倍率，并允许编辑阶位基础分", () => {
     const version = {
       covenants: { 炎: { group: "core", activateCount: 2 } },

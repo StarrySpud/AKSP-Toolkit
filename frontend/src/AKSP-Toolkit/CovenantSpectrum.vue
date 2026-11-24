@@ -27,6 +27,7 @@
             @lostpointercapture="drag = null"
             @keydown.left.prevent="moveByKey($event, index, -1)"
             @keydown.right.prevent="moveByKey($event, index, 1)"
+            v-on="covenantTooltipHandlers(entry.name)"
           >
             <img :src="getIconUrl(entry.name)" alt="" width="20" height="20" draggable="false" />
             <span class="covenant-name">{{ entry.name }}</span>
@@ -61,6 +62,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from "vue";
+import { covenantTooltipHandlers } from "../composables/useCovenantTooltip.js";
 import { getIconUrl } from "../utils/index.js";
 import { COVENANT_LINE_WIDTHS, DEFAULT_LINE_LEVEL } from "./covenantGraph.js";
 

@@ -147,6 +147,28 @@ describe("盟约适配分析", () => {
     }
   });
 
+  it("按攻击、生存、混合、经营排列附加盟约，热力图行列保持一致", async () => {
+    const data = getGameVersion("guicheng");
+    const analysis = analyzeCovenantPotential(data, roster(data), [], 8);
+    const map = mount(CovenantPotentialMap, { props: { analysis, versionId: data.id } });
+    const details = mount(CovenantPotential, { props: { version: data, analysis } });
+    try {
+      const sample = (names) => names.filter((name) => ["精准", "聚合", "坚守", "调和"].includes(name));
+      const columns = () => map.findAll("thead .function-frame").map((label) => label.text());
+      const expected = ["精准", "聚合", "坚守", "调和"];
+      expect(sample(columns())).toEqual(expected);
+      expect(sample(details.findAll('[aria-labelledby="additional-potential-title"] tbody th').map((label) => label.text()))).toEqual(expected);
+      await map.findAll(".level-picker button")[1].trigger("click");
+      await map.setProps({ overrides: { 调和: { 1: ["attack"] } } });
+      expect(sample(columns())).toEqual(["精准", "调和", "聚合", "坚守"]);
+      const cells = map.get("tbody tr").findAll("td button").map((cell) => cell.attributes("aria-label").split("与")[1].split("，")[0]);
+      expect(cells).toEqual(columns());
+    } finally {
+      map.unmount();
+      details.unmount();
+    }
+  });
+
   it("按明确的整备区词条腾出上场位，但仍要求池内凑足人数", () => {
     const reserve = Object.fromEntries(["远见", "奇迹", "投资人"].map((name, index) => [name, {
       group: "additional", activateCount: index === 2 ? 3 : 2,
@@ -223,6 +245,9 @@ describe("盟约适配分析", () => {
     expect(defense.candidates.find(({ name }) => name === "旅骨")).toMatchObject({ layers: 12, tier: 3, efficiency: 0 });
     expect(defense.candidates.find(({ name }) => name === "罗比菈塔")).toMatchObject({ layers: 24, tier: 5, efficiency: 2 });
     expect(defense.candidates.find(({ name }) => name === "淬羽赫默")).toMatchObject({ layers: 20, tier: 4 });
+    const [core, harmony] = analysis.stackersFor("伊比利亚", 1, "调和");
+    expect(core.candidates.length).toBeGreaterThan(0);
+    expect(harmony.candidates).toEqual([]);
     const [ursus] = analysis.stackersFor("乌萨斯", 1, "精准");
     expect(ursus.candidates.some(({ name }) => ["塔露拉", "折桠", "乌啾", "烈夏"].includes(name))).toBe(false);
   });

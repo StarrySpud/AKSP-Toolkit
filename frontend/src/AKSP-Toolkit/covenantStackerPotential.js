@@ -1,4 +1,5 @@
 import { CORE_GROUP, getOperatorTier, getOperatorTraits } from "../data/versions.js";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
 import { RANKING_TIERS } from "./covenantWeights.js";
 
 const bracketed = /【([^】]+)】/g;
@@ -13,7 +14,8 @@ export function rankCovenantStackers(version, pool, targets, limit, canField) {
   const stackers = new Map();
   const supports = [];
   const eligible = [...pool.keys()];
-  const relevantCovenants = [...new Set([...targets, "调和"])];
+  const relevantCovenants = [...new Set([...targets, HARMONY_COVENANT])];
+  const stackTargets = targets.filter((name) => name !== HARMONY_COVENANT);
   const canDeploy = new Map();
   function field(names, reserve = []) {
     const required = [...new Set(names)].sort();
@@ -71,7 +73,7 @@ export function rankCovenantStackers(version, pool, targets, limit, canField) {
         continue;
       }
 
-      for (const target of targets) {
+      for (const target of stackTargets) {
         if (name === "旅骨" && version.id === "guicheng") {
           const recipient = [{ name: "海沫", price: 8 }, { name: "温蒂", price: 6 }]
             .find(({ name }) => pool.get(name)?.has(target) && field([...required, name]));

@@ -1,5 +1,5 @@
 import {
-  countAvailableCovenants, getActivatedCovenantNames, getCovenantMemberThresholds, getHeldCovenantMembers,
+  countAvailableCovenants, getActivatedCovenantNames, getCovenantMemberThresholds, getHeldCovenantMembers, HARMONY_COVENANT,
 } from "../composables/useCovenantStats.js";
 import { ADDITIONAL_GROUP, CORE_GROUP, getOperatorCovenants } from "../data/versions.js";
 import { getAvatarUrl } from "../utils/index.js";
@@ -90,7 +90,7 @@ export function normalizeInventory(value, version) {
     extraAdditionalCounts: Object.fromEntries(Object.entries(value?.extraAdditionalCounts ?? {}).filter(([name, count]) =>
       (!version || version.covenants[name]?.group === ADDITIONAL_GROUP) && validCovenantLayerCount(count) && count > 0)),
     covenantLayers: Object.fromEntries(Object.entries(value?.covenantLayers ?? {}).filter(([name, count]) =>
-      (!version || Object.hasOwn(version.covenants, name)) && validCovenantLayerCount(count) && count > 0)),
+      name !== HARMONY_COVENANT && (!version || Object.hasOwn(version.covenants, name)) && validCovenantLayerCount(count) && count > 0)),
   };
 }
 

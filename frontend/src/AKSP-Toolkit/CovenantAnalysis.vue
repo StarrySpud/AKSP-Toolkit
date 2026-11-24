@@ -85,7 +85,7 @@
             <p>{{ selected.clusterName }}簇 · {{ graph.neighbors.get(selected).size }} 位关联干员</p>
             <p v-if="selected.isTerminal" class="terminal-mark">◆ 终端干员</p>
             <ul>
-              <li v-for="name in selected.covenants" :key="name">
+              <li v-for="name in selected.covenants" :key="name" v-on="covenantTooltipHandlers(name)">
                 <span :style="{ background: graph.colorByCovenant.get(name) }" class="dot"></span>
                 {{ name }}
               </li>
@@ -173,7 +173,7 @@
             @dragstart="startOperatorDrag($event, selected.name)"
             @keydown.alt.enter.prevent="emit('add-target-operator', selected.name)">{{ selected.name }}</button>
           <ul v-if="selected.covenants.length">
-            <li v-for="name in selected.covenants" :key="name">
+            <li v-for="name in selected.covenants" :key="name" v-on="covenantTooltipHandlers(name)">
               <span class="dot" :style="{ background: graph.colorByCovenant.get(name) }"></span>
               {{ name }}
             </li>
@@ -204,6 +204,7 @@
                 type="button"
                 :aria-pressed="highlightedCovenant === entry.name"
                 :aria-label="`高亮${entry.name}${entry.banned ? '（已 Ban）' : ''}`"
+                v-on="covenantTooltipHandlers(entry.name)"
                 @click="highlightedCovenant = highlightedCovenant === entry.name ? '' : entry.name"
               >
                 <img :src="getIconUrl(entry.name)" alt="" width="15" height="15" />
@@ -231,6 +232,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { covenantTooltipHandlers } from "../composables/useCovenantTooltip.js";
 import { ADDITIONAL_GROUP, CORE_GROUP } from "../data/versions.js";
 import { getIconUrl } from "../utils/index.js";
 import ModuleHelp from "../components/ModuleHelp.vue";
@@ -676,7 +678,7 @@ canvas:focus-visible { outline: 2px solid #a8ebda; outline-offset: -3px; }
 .graph-annotation.annotation-left { left: auto; right: clamp(8px, var(--anchor-x), calc(100% - 176px)); }
 .graph-operator { padding: 2px 5px; font-size: inherit; font-weight: 600; pointer-events: auto; }
 .graph-annotation ul { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
-.graph-annotation li { padding: 2px 4px; border-radius: 4px; background: #253345; font-size: 12px; white-space: nowrap; }
+.graph-annotation li { padding: 2px 4px; border-radius: 4px; background: #253345; font-size: 12px; white-space: nowrap; pointer-events: auto; }
 .graph-annotation small { color: #f0adad; }
 .annotation-empty { display: block; color: #abb9c9; }
 .view-actions { position: absolute; display: flex; gap: 5px; right: 12px; bottom: 10px; }

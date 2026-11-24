@@ -1,10 +1,11 @@
 import { CORE_GROUP, getEffectiveOperatorCovenants, getOperatorTraits } from "../data/versions.js";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
 
 export function getStackableLineupCovenants(version, lineup, activeNames, layers, held = []) {
-  const active = new Set(activeNames);
+  const active = new Set(activeNames.filter((name) => name !== HARMONY_COVENANT));
   if (!active.size) return active;
 
-  const maxLayers = Math.max(...activeNames.map((name) => layers[name] ?? 0));
+  const maxLayers = Math.max(...[...active].map((name) => layers[name] ?? 0));
   const remaining = new Map(held.map(({ name, normal, promoted }) => [name, normal + promoted]));
   for (const { name } of lineup) remaining.set(name, (remaining.get(name) ?? 0) - 1);
   const bench = held.filter(({ name }) => remaining.get(name) > 0);

@@ -76,6 +76,11 @@ export function getCovenantFunctions(versionId, name, level = 1, overrides = {})
   return baseByVersion[versionId]?.[name] ?? (Object.hasOwn(common, name) ? common[name] : []);
 }
 
+export function additionalCovenantSortRank(tags) {
+  if (tags.length > 1) return 2;
+  return { attack: 0, survival: 1, economy: 3 }[tags[0]] ?? 4;
+}
+
 export function summarizeCovenantFunctions(versionId, entries, overrides = {}) {
   const categories = entries.map((entry) => {
     const { name, level } = typeof entry === "string" ? { name: entry } : entry;

@@ -56,7 +56,7 @@
                   <img v-if="covenantIcons" :src="getIconUrl(name)" :alt="name" width="18" height="18" loading="lazy" />
                   <span v-else>{{ name }}</span>
                 </button>
-                <div class="layer-stepper" role="group" :aria-label="`${name}层数调整`" @click.stop>
+                <div v-if="name !== HARMONY_COVENANT" class="layer-stepper" role="group" :aria-label="`${name}层数调整`" @click.stop>
                   <button
                     v-for="{ delta, symbol, label } in layerSteps"
                     :key="delta"
@@ -67,7 +67,7 @@
                     @click="adjustCovenantLayers(name, layers, delta)"
                   >{{ symbol }}</button>
                 </div>
-                <input type="number" min="0" step="1" :aria-label="`${name}层数`" :value="layers" @click.stop
+                <input v-if="name !== HARMONY_COVENANT" type="number" min="0" step="1" :aria-label="`${name}层数`" :value="layers" @click.stop
                   @change="setCovenantCount($event, 'set-covenant-layers', name, layers)" />
               </li>
             </ul>
@@ -177,6 +177,7 @@
 
 <script setup>
 import { computed } from "vue";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
 import ModuleHelp from "../components/ModuleHelp.vue";
 import { getIconUrl } from "../utils/index.js";
 import LineupView from "./LineupView.vue";

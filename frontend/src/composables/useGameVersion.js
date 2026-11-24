@@ -6,7 +6,6 @@ import { computed, ref } from "vue";
 import {
   CORE_GROUP,
   ADDITIONAL_GROUP,
-  DEFAULT_VERSION_ID,
   GAME_VERSIONS,
   getCovenantsByGroup,
   getGameVersion,
@@ -14,6 +13,7 @@ import {
 } from "@/data/versions.js";
 
 const VERSION_STORAGE_KEY = "arknights_game_version";
+const DEFAULT_START_VERSION_ID = "guicheng";
 
 function readStoredVersion() {
   try {
@@ -24,7 +24,7 @@ function readStoredVersion() {
   } catch (error) {
     console.error("读取游戏版本缓存失败", error);
   }
-  return DEFAULT_VERSION_ID;
+  return DEFAULT_START_VERSION_ID;
 }
 
 // 模块级单例，保证所有组件共享同一份版本状态

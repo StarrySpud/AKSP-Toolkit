@@ -7,7 +7,7 @@
       :style="style"
     >
       <div class="tip-head">
-        <span class="tip-name">{{ state.name }}</span>
+        <span class="tip-name">{{ state.name }}<template v-if="threshold"> Lv.{{ state.level }}</template></span>
         <span
           v-if="groupLabel"
           class="group-tag"
@@ -20,7 +20,7 @@
         v-if="covenant"
         class="tip-meta"
       >
-        <span class="meta-item">激活 {{ covenant.activateCount }} 名</span>
+        <span class="meta-item">激活 {{ threshold ?? covenant.activateCount }} 名</span>
         <span
           v-if="state.presentCount !== null"
           class="meta-item"
@@ -42,11 +42,11 @@
       </div>
 
       <div
-        v-if="covenant && covenant.effects?.length"
+        v-if="effects.length"
         class="effect-list"
       >
         <div
-          v-for="(effect, index) in covenant.effects"
+          v-for="(effect, index) in effects"
           :key="index"
           class="effect-item"
         >
@@ -79,6 +79,7 @@
 <script setup>
   import { computed, nextTick, ref, watch } from "vue";
   import { useCovenantTooltipState } from "@/composables/useCovenantTooltip.js";
+  import { getCoreCovenantLevelEffects, getCovenantMemberThresholds } from "@/composables/useCovenantStats.js";
   import { useGameVersion } from "@/composables/useGameVersion.js";
 
   const state = useCovenantTooltipState();
@@ -89,6 +90,11 @@
 
   /** 当前悬停的盟约数据（版本切换后仍按名字取最新数据） */
   const covenant = computed(() => covenants.value[state.name] || null);
+  const threshold = computed(() => state.level && covenant.value?.group === "core"
+    ? getCovenantMemberThresholds(state.name, covenants.value)[state.level - 1] : null);
+  const effects = computed(() => threshold.value
+    ? getCoreCovenantLevelEffects(state.name, covenants.value, state.level, threshold.value)
+    : covenant.value?.effects ?? []);
 
   const groupLabel = computed(() => {
     if (!covenant.value) {
@@ -116,7 +122,7 @@
   });
 
   watch(
-    () => [state.visible, state.name],
+    () => [state.visible, state.name, state.level],
     async () => {
       if (!state.visible) {
         return;

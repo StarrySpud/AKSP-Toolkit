@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ref } from "vue";
 import { useCovenantStats } from "../composables/useCovenantStats";
+import { getGameVersion } from "../data/versions.js";
 
 describe("useCovenantStats composable", () => {
   it("should apply harmony bonus to core covenants", () => {
@@ -10,7 +11,7 @@ describe("useCovenantStats composable", () => {
       { name: "风笛" },
     ]);
 
-    const { presentCovCounts, activeCovList } = useCovenantStats(team);
+    const { presentCovCounts, activeCovList } = useCovenantStats(team, getGameVersion("mengyue"));
 
     expect(presentCovCounts.value["维多利亚"]).toBe(3);
     expect(activeCovList.value.some((cov) => cov.name === "维多利亚")).toBe(true);
@@ -19,7 +20,7 @@ describe("useCovenantStats composable", () => {
   it("should not show extra core covenant when team has only harmony", () => {
     const team = ref([{ name: "缪尔赛思" }]);
 
-    const { presentCovList, presentCovCounts } = useCovenantStats(team);
+    const { presentCovList, presentCovCounts } = useCovenantStats(team, getGameVersion("mengyue"));
 
     expect(presentCovCounts.value["调和"]).toBe(1);
     expect(presentCovList.value).not.toContain("炎");
@@ -36,7 +37,7 @@ describe("useCovenantStats composable", () => {
       { name: "星熊" },
     ]);
 
-    const { presentCovCounts, advancedCovLevels } = useCovenantStats(team);
+    const { presentCovCounts, advancedCovLevels } = useCovenantStats(team, getGameVersion("mengyue"));
 
     expect(presentCovCounts.value["炎"]).toBe(6);
     expect(advancedCovLevels.value["炎"]).toBe(1);
@@ -55,7 +56,7 @@ describe("useCovenantStats composable", () => {
       { name: "余" },
     ]);
 
-    const { presentCovCounts, advancedCovLevels } = useCovenantStats(team);
+    const { presentCovCounts, advancedCovLevels } = useCovenantStats(team, getGameVersion("mengyue"));
 
     expect(presentCovCounts.value["炎"]).toBe(9);
     expect(advancedCovLevels.value["炎"]).toBe(2);

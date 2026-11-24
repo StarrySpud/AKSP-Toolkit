@@ -1,5 +1,6 @@
 import { AFFINITY_BOND_LABEL } from "./affinityBonds.js";
 import { CORE_GROUP } from "../data/versions.js";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
 
 const DEFAULT_COVENANT_WEIGHT = 1;
 export const MAX_COVENANT_WEIGHT = 2;
@@ -51,8 +52,9 @@ export function getCovenantScoreTicks(name, weights, layers, targets, group, lev
   if (name === AFFINITY_BOND_LABEL) return AFFINITY_BOND_WEIGHT * COVENANT_TICKS_PER_POINT;
   const configured = normalizeCovenantWeight(weights?.[name], group);
   const weight = group === CORE_GROUP ? CORE_COVENANT_BASE_WEIGHT * (level > 1 ? configured : 1) : configured;
+  const layerCount = name === HARMONY_COVENANT ? 0 : (layers[name] ?? 0);
   return Math.round(weight * 10) * 100
-    * (LAYERS_PER_WEIGHT_BONUS + (layers[name] ?? 0)) * (targets.has(name) ? 2 : 1);
+    * (LAYERS_PER_WEIGHT_BONUS + layerCount) * (targets.has(name) ? 2 : 1);
 }
 
 export function rankOperators(graph, weights, terminalCoefficient = DEFAULT_TERMINAL_COEFFICIENT, {

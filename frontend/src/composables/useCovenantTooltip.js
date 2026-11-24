@@ -11,6 +11,7 @@ const state = reactive({
   x: 0,
   y: 0,
   name: "",
+  level: null,
   /** 当前编队中的同名干员数量，null 表示该入口不提供编队信息 */
   presentCount: null,
   activated: undefined,
@@ -69,12 +70,14 @@ function updatePosition(event) {
  * @param {boolean} [extra.activated] - 按有效盟约判定的激活状态
  * @param {number} [extra.advanced] - 当前进阶等级
  * @param {number} [extra.morphCount] - 其中由变形同构体贡献的人数
+ * @param {number} [extra.level] - 分析视角中只显示指定核心等级的效果
  */
 export function showCovenantTooltip(event, name, extra = {}) {
   if (!name) {
     return;
   }
   state.name = name;
+  state.level = extra.level ?? null;
   state.presentCount =
     typeof extra.presentCount === "number" ? extra.presentCount : null;
   state.activated = extra.activated;
@@ -103,6 +106,14 @@ export function moveCovenantTooltip(event) {
 export function hideCovenantTooltip() {
   clearAutoHide();
   state.visible = false;
+}
+
+export function covenantTooltipHandlers(name, level) {
+  return {
+    mouseenter: (event) => showCovenantTooltip(event, name, { level }),
+    mousemove: moveCovenantTooltip,
+    mouseleave: hideCovenantTooltip,
+  };
 }
 
 /** 供组件读取的响应式状态 */

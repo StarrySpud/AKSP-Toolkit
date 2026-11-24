@@ -223,7 +223,8 @@ import GameInformation from "../App.vue";
 import LauncherHeartbeat from "../components/LauncherHeartbeat.vue";
 import PwaUpdatePrompt from "../components/PwaUpdatePrompt.vue";
 import VersionSwitch from "../components/VersionSwitch.vue";
-import { getHeldCovenantMembers, summarizeRecommendedCovenants } from "../composables/useCovenantStats.js";
+import { getHeldCovenantMembers, HARMONY_COVENANT, summarizeRecommendedCovenants } from "../composables/useCovenantStats.js";
+import { hideCovenantTooltip } from "../composables/useCovenantTooltip.js";
 import { useGameVersion } from "../composables/useGameVersion.js";
 import { ADDITIONAL_GROUP, CORE_GROUP, getCovenantsByGroup, getOperatorCovenants } from "../data/versions.js";
 import { getAvatarUrl } from "../utils/index.js";
@@ -259,6 +260,7 @@ const page = ref("game");
 const strategyTab = ref("target");
 const analysisOpened = ref(false);
 const analysisView = ref("graph");
+watch([page, analysisView, currentVersionId], hideCovenantTooltip);
 const gameInformation = ref(null);
 const covenantAnalysis = ref(null);
 const configFile = ref(null);
@@ -709,6 +711,7 @@ function applyAutomaticPlan(plan) {
 function setInventoryCovenantCount(field, name, count) {
   const covenants = currentVersion.value.covenants;
   if (!Object.hasOwn(covenants, name) || !validCovenantLayerCount(count)) return;
+  if (field === "covenantLayers" && name === HARMONY_COVENANT) return;
   if (field === "extraCoreCounts" && covenants[name].group !== CORE_GROUP) return;
   if (field === "extraAdditionalCounts" && covenants[name].group !== ADDITIONAL_GROUP) return;
   inventorySetting.update((state = normalizeInventory()) => {

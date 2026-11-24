@@ -9,7 +9,7 @@
     <template v-else>
       <div class="core-options" role="group" aria-label="选择分析的核心盟约">
         <button v-for="core in analysis.cores" :key="core.name" type="button"
-          :aria-pressed="report.name === core.name" @click="selectedCore = core.name">
+          :aria-pressed="report.name === core.name" @click="selectedCore = core.name" v-on="covenantTooltipHandlers(core.name)">
           <strong>{{ core.name }}</strong>
           <span>{{ core.count }} 位 · {{ coreSummary(core) }}</span>
         </button>
@@ -19,7 +19,7 @@
         <h3 id="core-potential-title">{{ report.name }}的成阵潜力</h3>
         <ul v-if="report.levels.length" class="core-levels">
           <li v-for="(level, index) in report.levels" :key="level.threshold" :class="{ feasible: level.canActivate }">
-            <strong>Lv.{{ index + 1 }} · {{ level.threshold }} 人门槛</strong>
+            <strong v-on="covenantTooltipHandlers(report.name, index + 1)">Lv.{{ index + 1 }} · {{ level.threshold }} 人门槛</strong>
             <CovenantFunctionTags :tags="tagsFor(report.name, index + 1)" />
             <span>{{ levelText(level) }}</span>
           </li>
@@ -47,7 +47,7 @@
           </tr></thead>
           <tbody>
             <tr v-for="side in sortedSides" :key="side.name">
-              <th scope="row">{{ side.name }}<small v-if="side.fromHolding">整备区也可计入</small></th>
+              <th scope="row" v-on="covenantTooltipHandlers(side.name)">{{ side.name }}<small v-if="side.fromHolding">整备区也可计入</small></th>
               <td>{{ side.coreCount }} / {{ side.poolCount }}</td>
               <td>{{ side.threshold ?? "暂无数据" }}</td>
               <td :class="{ feasible: side.canActivate }">{{ side.unknown ? "待确认条件" : levelText(side) }}</td>
@@ -67,10 +67,10 @@
           <table class="joint-matrix">
             <thead><tr>
               <th scope="col">附加盟约</th>
-              <th v-for="side in compatible" :key="side.name" scope="col">{{ side.name }}</th>
+              <th v-for="side in compatible" :key="side.name" scope="col" v-on="covenantTooltipHandlers(side.name)">{{ side.name }}</th>
             </tr></thead>
             <tbody><tr v-for="(left, row) in compatible" :key="left.name">
-              <th scope="row">{{ left.name }}</th>
+              <th scope="row" v-on="covenantTooltipHandlers(left.name)">{{ left.name }}</th>
               <td v-for="(right, column) in compatible" :key="right.name"
                 :class="{ feasible: pairFor(left.name, right.name)?.canActivate }">
                 <span v-if="column <= row">·</span>
@@ -93,7 +93,8 @@
 import { computed, ref } from "vue";
 import ModuleHelp from "../components/ModuleHelp.vue";
 import CovenantFunctionTags from "./CovenantFunctionTags.vue";
-import { getCovenantFunctions, summarizeCovenantFunctions } from "./covenantFunctions.js";
+import { covenantTooltipHandlers } from "../composables/useCovenantTooltip.js";
+import { additionalCovenantSortRank, getCovenantFunctions, summarizeCovenantFunctions } from "./covenantFunctions.js";
 
 const props = defineProps({
   version: { type: Object, required: true },
@@ -104,7 +105,7 @@ const props = defineProps({
 const helpText = [
   "本系干员数统计招募池中同时拥有该核心和附加盟约的不同干员；同阵验证允许其他核心的干员补位。",
   "查看未 Ban 的盟约。Ban 影响招募池，实际阵容的已持有干员仍可激活盟约。",
-  "复用人数门槛与调和加成；独行需要恰好一名。远见、奇迹、投资人可从全池凑人数，不必为其另留上场位。",
+  "复用人数门槛与调和加成。远见、奇迹、投资人可从全池凑人数，不必为其另留上场位。",
   "功能覆盖按单条盟约统计。同阵表逐对验证，不能推断三个或更多附加盟约也能一起激活。",
 ].join("\n");
 
@@ -112,7 +113,8 @@ const tagsFor = (name, level) => getCovenantFunctions(props.version.id, name, le
 const selectedCore = ref("");
 const report = computed(() => props.analysis.cores.find(({ name }) => name === selectedCore.value) ?? props.analysis.cores[0]);
 const sortedSides = computed(() => [...(report.value?.sides ?? [])].sort((left, right) =>
-  Number(right.full) - Number(left.full) || Number(right.canActivate) - Number(left.canActivate)
+  additionalCovenantSortRank(tagsFor(left.name)) - additionalCovenantSortRank(tagsFor(right.name))
+  || Number(right.full) - Number(left.full) || Number(right.canActivate) - Number(left.canActivate)
   || right.coreCount - left.coreCount || right.poolCount - left.poolCount));
 const compatible = computed(() => sortedSides.value.filter(({ canActivate }) => canActivate));
 const pairKey = (left, right) => JSON.stringify([left, right].sort());

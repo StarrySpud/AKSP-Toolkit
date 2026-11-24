@@ -1,4 +1,5 @@
 import { ADDITIONAL_GROUP, CORE_GROUP, GAME_VERSIONS } from "../data/versions.js";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
 import { getAvatarUrl } from "../utils/index.js";
 import { normalizeAffinityBonds, readAffinityBond } from "./affinityBonds.js";
 import { COVENANT_LINE_WIDTHS } from "./covenantGraph.js";
@@ -196,7 +197,7 @@ function readInventory(value, path, version) {
     covenantPanelCollapsed: bool(data.covenantPanelCollapsed ?? false, `${path}.covenantPanelCollapsed`),
     targetCovenantNames: [...new Set(list(data.targetCovenantNames ?? [], `${path}.targetCovenantNames`, text)
       .filter((name) => Object.hasOwn(version.covenants, name)))],
-    covenantLayers: readCounts("covenantLayers", (name) => Object.hasOwn(version.covenants, name)),
+    covenantLayers: readCounts("covenantLayers", (name) => name !== HARMONY_COVENANT && Object.hasOwn(version.covenants, name)),
     extraCoreCounts: readCounts("extraCoreCounts", (name) => version.covenants[name]?.group === CORE_GROUP),
     extraAdditionalCounts: readCounts("extraAdditionalCounts", (name) => version.covenants[name]?.group === ADDITIONAL_GROUP),
     pieces: Object.fromEntries(Object.entries(object(data.pieces, `${path}.pieces`)).map(([name, counts]) => {

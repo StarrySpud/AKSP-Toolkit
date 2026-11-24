@@ -23,6 +23,10 @@ describe("游戏版本数据", () => {
     expect(DEFAULT_VERSION_ID).toBe("mengyue");
   });
 
+  it("首次打开默认选中规程", () => {
+    expect(useGameVersion().currentVersionId.value).toBe("guicheng");
+  });
+
   it("盟约版本应有 8 个核心盟约", () => {
     const version = getGameVersion("mengyue");
     expect(getCovenantsByGroup(version, CORE_GROUP)).toHaveLength(8);

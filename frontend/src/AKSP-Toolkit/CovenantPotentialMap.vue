@@ -12,7 +12,7 @@
         <ol class="breadth-list">
           <li v-for="{ core, rank, fullSides, fullPairs, slots } in ranked" :key="core.name" :class="{ leading: rank === 1 && fullSides > 0 }">
             <div class="breadth-label">
-              <strong><span class="rank-number">{{ rank }}</span><CovenantFunctionFrame :tags="tagsFor(core.name)">{{ core.name }}</CovenantFunctionFrame></strong>
+              <strong><span class="rank-number">{{ rank }}</span><CovenantFunctionFrame :tags="tagsFor(core.name)" v-on="covenantTooltipHandlers(core.name)">{{ core.name }}</CovenantFunctionFrame></strong>
               <strong>{{ fullSides }} 条</strong>
             </div>
             <progress :value="fullSides" :max="columns.length || 1" :aria-label="`${core.name}可满编搭配数`"></progress>
@@ -35,7 +35,7 @@
             <h4>最多同时激活 {{ multiCoreRows[0].names.length }} 种核心盟约 · {{ multiCoreRows.length }} 种搭配</h4>
             <ul class="multi-core-list">
               <li v-for="row in multiCoreRows" :key="row.names.join(',')">
-                <div><CovenantFunctionFrame v-for="name in row.names" :key="name" :tags="tagsFor(name)">{{ name }}</CovenantFunctionFrame></div>
+                <div><CovenantFunctionFrame v-for="name in row.names" :key="name" :tags="tagsFor(name)" v-on="covenantTooltipHandlers(name, 1)">{{ name }}</CovenantFunctionFrame></div>
                 <span class="note">最少上场 {{ row.minSlots }} 位 · {{ row.full ? '可满编' : '暂不可满编' }}</span>
                 <p>不可替换干员 <strong>{{ row.indispensable.join('、') || '无' }}</strong></p>
               </li>
@@ -55,8 +55,8 @@
         <div v-if="selectedPair" class="pair-detail" aria-live="polite">
           <header>
           <strong>
-            <CovenantFunctionFrame :tags="selectedPair.row.tags">{{ selectedPair.row.name }} Lv.{{ selectedPair.row.level }}</CovenantFunctionFrame>
-            × <CovenantFunctionFrame :tags="tagsFor(selectedPair.side.name)">{{ selectedPair.side.name }}</CovenantFunctionFrame>
+            <CovenantFunctionFrame :tags="selectedPair.row.tags" v-on="covenantTooltipHandlers(selectedPair.row.name, selectedPair.row.level)">{{ selectedPair.row.name }} Lv.{{ selectedPair.row.level }}</CovenantFunctionFrame>
+            × <CovenantFunctionFrame :tags="tagsFor(selectedPair.side.name)" v-on="covenantTooltipHandlers(selectedPair.side.name)">{{ selectedPair.side.name }}</CovenantFunctionFrame>
           </strong>
           <span>{{ statuses[statusOf(selectedPair.side)].label }}</span>
           <span v-if="selectedPair.side.fromHolding">整备区也可计入，符合条件的干员无需占用上场位</span>
@@ -67,7 +67,7 @@
             <div class="stacker-groups">
               <section v-for="{ target, candidates } in stackers" :key="target">
                 <strong>{{ target }}</strong>
-                <p v-if="!candidates.length" class="note">当前搭配暂无可用的叠层手。</p>
+                <p v-if="!candidates.length" class="note">{{ target === HARMONY_COVENANT ? '调和无法叠层。' : '当前搭配暂无可用的叠层手。' }}</p>
                 <ol v-else class="stacker-list">
                   <li v-for="candidate in candidates.slice(0, 5)" :key="candidate.name" :title="stackerTooltip(candidate)">
                     <span>{{ candidate.name }}<small v-if="candidate.support"> · 特殊</small><small v-if="candidate.reserve"> · 整备区可用</small></span>
@@ -94,12 +94,12 @@
             <thead><tr>
               <th scope="col">核心盟约</th>
               <th v-for="{ name } in columns" :key="name" scope="col">
-                <CovenantFunctionFrame :tags="tagsFor(name)">{{ name }}</CovenantFunctionFrame>
+                <CovenantFunctionFrame :tags="tagsFor(name)" v-on="covenantTooltipHandlers(name)">{{ name }}</CovenantFunctionFrame>
               </th>
             </tr></thead>
             <tbody><tr v-for="row in heatmapRows" :key="`${row.name}-${row.level}`">
               <th scope="row">
-                <CovenantFunctionFrame :tags="row.tags">{{ row.name }}<template v-if="advancedView"> Lv.{{ row.level }}</template></CovenantFunctionFrame>
+                <CovenantFunctionFrame :tags="row.tags" v-on="covenantTooltipHandlers(row.name, row.level)">{{ row.name }}<template v-if="advancedView"> Lv.{{ row.level }}</template></CovenantFunctionFrame>
               </th>
               <td v-for="side in row.sides" :key="side.name">
                 <button type="button" class="heatmap-cell" :data-state="statusOf(side)"
@@ -121,8 +121,10 @@
 
 <script setup>
 import { computed, ref } from "vue";
+import { HARMONY_COVENANT } from "../composables/useCovenantStats.js";
+import { covenantTooltipHandlers } from "../composables/useCovenantTooltip.js";
 import CovenantFunctionFrame from "./CovenantFunctionFrame.vue";
-import { COVENANT_FUNCTIONS, getCovenantFunctions } from "./covenantFunctions.js";
+import { additionalCovenantSortRank, COVENANT_FUNCTIONS, getCovenantFunctions } from "./covenantFunctions.js";
 
 const props = defineProps({
   analysis: { type: Object, required: true },
@@ -146,7 +148,9 @@ const stackerRating = ({ tier, layers, support, period }) => support
   ? `${tier} 级 · 最优额外 +${layers} 层` : `${tier} 级 · ${layers} 层 / ${period}`;
 const stackerTooltip = ({ text, detail }) => [text, detail].filter(Boolean).join("\n");
 const efficiencyLabel = ({ efficiency, shopLevel }) => `性价比 ${efficiency > 0 ? '+' : ''}${efficiency} · 商店 ${shopLevel} 级`;
-const columns = computed(() => props.analysis.cores[0]?.sides ?? []);
+const orderedSides = (sides) => [...sides].sort((left, right) =>
+  additionalCovenantSortRank(tagsFor(left.name)) - additionalCovenantSortRank(tagsFor(right.name)));
+const columns = computed(() => orderedSides(props.analysis.cores[0]?.sides ?? []));
 const ranked = computed(() => {
   const compare = (a, b) => b.fullSides - a.fullSides || b.fullPairs - a.fullPairs || a.slots - b.slots;
   const rows = props.analysis.cores.map((core) => {
@@ -167,10 +171,10 @@ const ranked = computed(() => {
 });
 const heatmapRows = computed(() => {
   if (!advancedView.value) {
-    return ranked.value.map(({ core }) => ({ name: core.name, level: 1, tags: tagsFor(core.name), sides: core.sides }));
+    return ranked.value.map(({ core }) => ({ name: core.name, level: 1, tags: tagsFor(core.name), sides: orderedSides(core.sides) }));
   }
   return ranked.value.flatMap(({ core }) => core.advanced.map((entry) => ({
-    ...entry, name: core.name, tags: tagsFor(core.name, entry.level),
+    ...entry, name: core.name, tags: tagsFor(core.name, entry.level), sides: orderedSides(entry.sides),
   }))).sort((left, right) => Number(right.canActivate) - Number(left.canActivate)
     || (functionOrder.get(left.tags[0]) ?? functionOrder.size) - (functionOrder.get(right.tags[0]) ?? functionOrder.size));
 });
