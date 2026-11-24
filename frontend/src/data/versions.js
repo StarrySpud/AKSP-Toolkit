@@ -125,8 +125,13 @@ export function getOperatorCovenants(name, version) {
   return matched.length > 0 ? matched : ["协防干员"];
 }
 
-export function isOperatorBanned(covenants, banned) {
-  return covenants.length > 0 && covenants.every((covenant) => banned.has(covenant));
+export function isOperatorBanned(covenants, banned, version) {
+  if (banned.size === 0 || covenants.length === 0) return false;
+  if (version.banStrategy === "faction" && covenants.some((name) =>
+    version.covenants[name]?.group === CORE_GROUP && banned.has(name))) {
+    return true;
+  }
+  return covenants.every((name) => banned.has(name));
 }
 
 /**

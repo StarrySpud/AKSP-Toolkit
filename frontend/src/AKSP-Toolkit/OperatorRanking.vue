@@ -48,7 +48,7 @@
             <small v-if="weights && node.isTerminal && terminalCoefficient !== DEFAULT_TERMINAL_COEFFICIENT">终端 ×{{ terminalCoefficient }}</small>
           </span>
           <span>{{ degree }} 位关联</span>
-          <small v-if="changesLineup">改变推荐阵容 ×2</small>
+          <small v-if="changesLineup">改变推荐阵容 ×{{ heldLineupChangeCoefficient }}</small>
           <template v-else>
             <small v-if="progress.length" :title="progress.join('、')">盟约推进 {{ progress.length }} 项</small>
             <small v-if="milestones.length" :title="milestones.join('、')">触发 {{ milestones.length }} 次</small>
@@ -64,7 +64,10 @@
 import { computed, onUnmounted } from "vue";
 import ModuleHelp from "../components/ModuleHelp.vue";
 import { startOperatorDrag } from "./operatorDrag.js";
-import { DEFAULT_PAIR_COEFFICIENT, DEFAULT_STACKING_COEFFICIENT, DEFAULT_TERMINAL_COEFFICIENT, formatRankingScore, PROMOTION_COEFFICIENT, rankOperators, RANKING_TIERS } from "./covenantWeights.js";
+import {
+  DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT, DEFAULT_PAIR_COEFFICIENT, DEFAULT_STACKABLE_COVENANT_COEFFICIENT,
+  DEFAULT_STACKING_COEFFICIENT, DEFAULT_TERMINAL_COEFFICIENT, formatRankingScore, PROMOTION_COEFFICIENT, rankOperators, RANKING_TIERS,
+} from "./covenantWeights.js";
 
 const props = defineProps({
   graph: { type: Object, required: true },
@@ -75,7 +78,10 @@ const props = defineProps({
   directedCovenants: { type: Set, default: () => new Set() },
   terminalCoefficient: { type: Number, default: DEFAULT_TERMINAL_COEFFICIENT },
   pairCoefficient: { type: Number, default: DEFAULT_PAIR_COEFFICIENT },
+  heldLineupChangeCoefficient: { type: Number, default: DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT },
   stackingCoefficient: { type: Number, default: DEFAULT_STACKING_COEFFICIENT },
+  stackableCovenantCoefficient: { type: Number, default: DEFAULT_STACKABLE_COVENANT_COEFFICIENT },
+  stackableCovenants: { type: Set, default: () => new Set() },
   stackingEnabled: Boolean,
   pairNames: { type: Set, default: () => new Set() },
   promotionNames: { type: Set, default: () => new Set() },
@@ -86,23 +92,31 @@ const props = defineProps({
 const emit = defineEmits(["select", "update:tiers", "toggle-terminal", "add-target-operator"]);
 const rankingHelp = computed(() => [
   "未选阶位时显示全部。单击购入，双击切换终端标签。可拖入目标阵容，或按 Alt+Enter。",
-  props.weights ? "连线按盟约权重 ×（1 + 层数 ÷ 20）计分，终端干员再乘以终端系数。"
+  props.weights ? "连线按盟约基准分 ×（1 + 层数 ÷ 20）计分，终端干员再乘以终端系数。"
     : "同一位关联干员计 1 基础分，盟约层数另加分。",
-  props.considerHeld ? "向下一人数节点推进加一次盟约分，到达节点加两次。若购入改变推荐阵容，持有加成改为基础分 ×2。" : "",
-  props.considerHeld ? `买入一枚即可成对时总分 ×${props.pairCoefficient}，买入一枚即可晋升时总分 ×${PROMOTION_COEFFICIENT}。` : "",
+  props.considerHeld ? `向下一人数节点推进加一次盟约分，到达节点加两次。若购入改变推荐阵容，持有加成改为基础分 ×${props.heldLineupChangeCoefficient}。` : "",
+  props.considerHeld ? `买入一枚即可成对或具备两枚晋升特质时，总分 ×${props.pairCoefficient}。买入即晋升时改用 ×${PROMOTION_COEFFICIENT}。` : "",
   props.directedCovenants.size ? `定向搜索 ×2 · ${[...props.directedCovenants].join("、")}`
     : "定向搜索会将满足目标阵容已激活盟约的对应羁绊分乘以 2。",
   `开启「优先叠层」后，有持续叠加特质的干员总分 ×${props.stackingCoefficient}。`,
+  props.stackingEnabled && props.stackableCovenants.size
+    ? `推荐阵容可叠层的盟约 ×${props.stackableCovenantCoefficient} · ${[...props.stackableCovenants].join("、")}` : "",
 ].filter(Boolean).join("\n"));
 const showScores = computed(() => props.weights || props.considerHeld || props.targetCovenants.size || props.directedCovenants.size
   || props.graph.affinityMembers?.size || Object.values(props.covenantLayers).some((count) => count > 0)
-  || (props.stackingEnabled && props.stackingCoefficient !== 1 && props.graph.nodes.some((node) => node.hasStackingTrait)));
+  || (props.stackingEnabled && (
+    (props.stackingCoefficient !== 1 && props.graph.nodes.some((node) => node.hasStackingTrait))
+    || (props.stackableCovenantCoefficient !== 1 && props.stackableCovenants.size)
+  )));
 const ranked = computed(() => rankOperators(props.graph, props.weights, props.terminalCoefficient, {
   purchaseEffects: props.purchaseEffects,
+  heldLineupChangeCoefficient: props.heldLineupChangeCoefficient,
   pairNames: props.pairNames,
   pairCoefficient: props.pairCoefficient,
   stackingCoefficient: props.stackingCoefficient,
   stackingEnabled: props.stackingEnabled,
+  stackableCovenantCoefficient: props.stackableCovenantCoefficient,
+  stackableCovenants: props.stackableCovenants,
   promotionNames: props.promotionNames,
   covenantLayers: props.covenantLayers,
   targetCovenants: props.targetCovenants,

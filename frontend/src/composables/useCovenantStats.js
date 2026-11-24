@@ -19,6 +19,11 @@ import { useGameVersion } from "./useGameVersion.js";
 export const HARMONY_COVENANT = "调和";
 const COVENANTS_FROM_HOLDING = ["远见", "奇迹", "投资人"];
 
+export function canActivateFromHolding(name, version) {
+  return (version.covenants[name]?.effects ?? []).some(({ description }) =>
+    description?.includes("整备区") && description.includes("也可用于激活盟约"));
+}
+
 export function getHeldCovenantMembers(held, version) {
   const members = new Map();
   for (const operator of held) {
@@ -176,15 +181,16 @@ export function summarizeRecommendedCovenants(team, version, extraCovenantCounts
  * @param {Object} covenants - 当前版本盟约数据
  * @returns {Array<number>} 去重升序的阈值
  */
+function getEffectMemberThreshold(name, effect) {
+  const matched = (effect.condition || "").match(/^在场(\d+)名(?:不同的?(?:【([^】]+)】)?|【([^】]+)】)干员/);
+  const requiredCovenant = matched?.[2] ?? matched?.[3];
+  return matched && (!requiredCovenant || requiredCovenant === name) ? Number(matched[1]) : null;
+}
+
 function getAdvancedThresholds(name, covenants) {
   const effects = covenants?.[name]?.effects || [];
   const thresholds = effects
-    .map((effect) => {
-      const condition = effect.condition || "";
-      const matched = condition.match(/^在场(\d+)名(?:不同的?(?:【([^】]+)】)?|【([^】]+)】)干员/);
-      const requiredCovenant = matched?.[2] ?? matched?.[3];
-      return matched && (!requiredCovenant || requiredCovenant === name) ? Number(matched[1]) : null;
-    })
+    .map((effect) => getEffectMemberThreshold(name, effect))
     .filter((value) => value !== null);
 
   return [...new Set(thresholds)].sort((a, b) => a - b);
@@ -194,6 +200,14 @@ export function getCovenantMemberThresholds(name, covenants) {
   const activation = covenants[name]?.activateCount;
   if (!Number.isInteger(activation) || activation < 1) return [];
   return [activation, ...getAdvancedThresholds(name, covenants).filter((threshold) => threshold > activation)];
+}
+
+export function getCoreCovenantLevelEffects(name, covenants, level, threshold) {
+  const covenant = covenants[name];
+  return (covenant?.effects ?? []).filter((effect) => {
+    const minimum = getEffectMemberThreshold(name, effect);
+    return level === 1 ? minimum === null || minimum <= threshold : minimum === threshold;
+  });
 }
 
 /**

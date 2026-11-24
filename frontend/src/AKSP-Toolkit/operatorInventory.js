@@ -10,6 +10,7 @@ import { buildLineupScoring } from "./lineupScoring.js";
 export const DEFAULT_LINEUP_SIZE = 8;
 export const MAX_LINEUP_SIZE = 20;
 export const DEFAULT_ENDGAME_PLAN_NAME = "终局阵容方案";
+const DEFAULT_PROMOTION_COPIES = 3;
 
 export function validLineupSize(value) {
   return Number.isInteger(value) && value >= 1 && value <= MAX_LINEUP_SIZE;
@@ -19,14 +20,18 @@ export function validCovenantLayerCount(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-export function readPieceCounts(counts) {
+export function getPromotionCopies(name, version) {
+  return version?.operators?.[name]?.promotionCopies ?? DEFAULT_PROMOTION_COPIES;
+}
+
+export function readPieceCounts(counts, promotionCopies = DEFAULT_PROMOTION_COPIES) {
   if (!counts || typeof counts !== "object") return null;
   const { normal, promoted = counts.shiny } = counts;
   if (![normal, promoted].every((count) => Number.isSafeInteger(count) && count >= 0)
     || normal + promoted === 0) return null;
-  const normalizedPromoted = promoted + Math.floor(normal / 3);
+  const normalizedPromoted = promoted + Math.floor(normal / promotionCopies);
   return Number.isSafeInteger(normalizedPromoted)
-    ? { normal: normal % 3, promoted: normalizedPromoted } : null;
+    ? { normal: normal % promotionCopies, promoted: normalizedPromoted } : null;
 }
 
 export function readTargetPiece(value) {
@@ -51,7 +56,7 @@ export function readEndgamePlan(value, migrateLegacyName = false) {
 
 export function normalizeInventory(value, version) {
   const pieces = Object.fromEntries(Object.entries(value?.pieces ?? {})
-    .map(([name, counts]) => [name, readPieceCounts(counts)])
+    .map(([name, counts]) => [name, readPieceCounts(counts, getPromotionCopies(name, version))])
     .filter(([name, counts]) => name && counts));
   const targetLineup = (Array.isArray(value?.targetLineup) ? value.targetLineup : [])
     .map(readTargetPiece).filter(Boolean).slice(0, MAX_LINEUP_SIZE);
@@ -89,12 +94,13 @@ export function normalizeInventory(value, version) {
   };
 }
 
-export function changeHeldPieces(pieces, name, action) {
+export function changeHeldPieces(pieces, name, action, version) {
   const { normal = 0, promoted = 0 } = Object.hasOwn(pieces, name) ? pieces[name] : {};
   let next;
   if (action === "buy") {
     const copies = normal + 1;
-    next = { normal: copies % 3, promoted: promoted + Math.floor(copies / 3) };
+    const promotionCopies = getPromotionCopies(name, version);
+    next = { normal: copies % promotionCopies, promoted: promoted + Math.floor(copies / promotionCopies) };
   } else if (action === "sell-normal" && normal > 0) {
     next = { normal: normal - 1, promoted };
   } else if (action === "sell-promoted" && promoted > 0) {
@@ -159,7 +165,7 @@ export function getHeldPurchaseEffects(version, candidates, pieces, held, curren
   const currentComposition = lineupComposition(currentLineup);
 
   return new Map(candidates.map(({ name }) => {
-    const nextPieces = changeHeldPieces(pieces, name, "buy");
+    const nextPieces = changeHeldPieces(pieces, name, "buy", version);
     const nextLineup = recommend(getHeldOperators(nextPieces));
     return [name, {
       ...bonuses.get(name),

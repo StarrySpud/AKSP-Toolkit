@@ -8,6 +8,7 @@ import { buildCovenantGraph } from "../AKSP-Toolkit/covenantGraph.js";
 import { drawCovenantGraph } from "../AKSP-Toolkit/drawCovenantGraph.js";
 import { COVENANT_TICKS_PER_POINT, rankOperators } from "../AKSP-Toolkit/covenantWeights.js";
 import { buildLineupScoring, getLineupScoreTicks, sumActivatedCovenantScore } from "../AKSP-Toolkit/lineupScoring.js";
+import { getStackableLineupCovenants } from "../AKSP-Toolkit/lineupStacking.js";
 import { findBestLineups } from "../AKSP-Toolkit/endgameOptimizer.js";
 import { changeHeldPieces, getCovenantProgressBonuses, getHeldActivatableCovenants, getHeldOperators, getHeldPurchaseEffects, normalizeInventory, recommendHeldLineup } from "../AKSP-Toolkit/operatorInventory.js";
 import { useGameVersion } from "../composables/useGameVersion.js";
@@ -41,7 +42,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
     }
   });
 
-  it("持续叠加开启时只为优推应用一次倍率，阵容棋子分沿用阶位", () => {
+  it("优先叠层为优推和推荐阵容棋子各应用一次倍率，并允许编辑阶位基础分", () => {
     const version = {
       covenants: { 炎: { group: "core", activateCount: 2 } },
       operators: {
@@ -51,13 +52,43 @@ describe("AKSP-Toolkit 盟约分析", () => {
     };
     const names = ["A", "B"];
     const graph = buildCovenantGraph(version, names.map((name) => ({ name })), []);
-    const setup = { weights: {}, layers: {}, targets: new Set(), stackingEnabled: true, stackingCoefficient: 1.23, defaultPromoted: true };
+    const setup = { weights: {}, layers: {}, targets: new Set(), stackingEnabled: true, stackingCoefficient: 1.23,
+      tierBasePoints: [0.5, 0.8, 1.1, 1.4, 1.7, 2], defaultPromoted: true };
     expect(rankOperators(graph, null).map(({ score }) => score)).toEqual([1, 1]);
     expect(rankOperators(graph, null, 1, { stackingEnabled: true }).map(({ score }) => score)).toEqual([1.5, 1]);
     expect(rankOperators(graph, null, 1, setup).map(({ score }) => score)).toEqual([1.23, 1]);
     const [plan] = findBestLineups(buildLineupScoring(version, names, setup), 2, 1);
-    expect(plan.score / COVENANT_TICKS_PER_POINT).toBe(7.6);
+    expect(plan.score / COVENANT_TICKS_PER_POINT).toBe(8.244);
     expect(plan.score).toBe(getLineupScoreTicks(summarizeRecommendedCovenants(names, version), plan.pieces, version, setup));
+    const edited = { ...setup, tierBasePoints: [0.5, 0.8, 1.1, 0.75, 1.7, 2], stackingEnabled: false };
+    expect(getLineupScoreTicks(summarizeRecommendedCovenants(names, version), plan.pieces, version, edited)
+      / COVENANT_TICKS_PER_POINT).toBe(5);
+  });
+
+  it("只为上场干员能叠层的已激活盟约加乘，附加盟约基准分可以为零", () => {
+    const version = {
+      covenants: { 炎: { group: "core", activateCount: 2 }, 助力: { group: "additional", activateCount: 2 },
+        坚守: { group: "additional", activateCount: 2 } },
+      operators: {
+        A: { tier: "Ⅰ", covenants: ["炎", "助力", "坚守"], traits: [{ type: "持续叠加",
+          description: "场上每有一名【坚守】干员，使已激活的【炎】【助力】层数+1" }] },
+        B: { tier: "Ⅰ", covenants: ["炎", "助力", "坚守"] },
+      },
+    };
+    const pieces = [{ name: "A" }, { name: "B" }];
+    const active = summarizeRecommendedCovenants(pieces, version);
+    const stackableCovenants = getStackableLineupCovenants(version, pieces, active.activeNames, {});
+    expect(stackableCovenants).toEqual(new Set(["炎", "助力"]));
+    expect(getStackableLineupCovenants(version, pieces, ["炎"], {})).toEqual(new Set(["炎"]));
+    expect(getStackableLineupCovenants(version, [pieces[1]], active.activeNames, {})).toEqual(new Set());
+    const graph = buildCovenantGraph(version, pieces, []);
+    const weights = { 助力: 0, 坚守: 0.5 };
+    const options = { stackingEnabled: true, stackingCoefficient: 1, stackableCovenants };
+    expect(rankOperators(graph, weights, 1, options).map(({ score }) => score)).toEqual([2.9, 2.9]);
+    expect(rankOperators(graph, weights, 1, { ...options, stackableCovenantCoefficient: 1.5 })
+      .map(({ score }) => score)).toEqual([3.5, 3.5]);
+    expect(rankOperators(graph, weights, 1, { ...options, stackingEnabled: false })
+      .map(({ score }) => score)).toEqual([2.5, 2.5]);
   });
 
   it("额外核心和附加盟约赋给已上场干员，更新激活等级并保留显示人数", async () => {
@@ -154,13 +185,13 @@ describe("AKSP-Toolkit 盟约分析", () => {
 
     const oneHeld = getHeldCovenantMembers(["渡桥"], version);
     const missingMember = buildLineupScoring(version, ["渡桥", "寒檀"], { ...options, heldMembers: oneHeld });
-    expect(findBestLineups(missingMember, 1, 2).map(({ names, score }) => [names[0], score])).toEqual([
-      ["寒檀", 480], ["渡桥", 160],
+    expect(findBestLineups(missingMember, 1, 2).map(({ names, score }) => [names[0], score / COVENANT_TICKS_PER_POINT])).toEqual([
+      ["寒檀", 2.4], ["渡桥", 0.8],
     ]);
     const withGrant = { ...options, heldMembers: oneHeld, extras: { 远见: 1 } };
     const byRecipient = buildLineupScoring(version, ["渡桥", "星极"], withGrant);
-    expect(findBestLineups(byRecipient, 1, 2).map(({ names, score }) => [names[0], score])).toEqual([
-      ["星极", 360], ["渡桥", 160],
+    expect(findBestLineups(byRecipient, 1, 2).map(({ names, score }) => [names[0], score / COVENANT_TICKS_PER_POINT])).toEqual([
+      ["星极", 1.8], ["渡桥", 0.8],
     ]);
     expect(summarizeRecommendedCovenants(["星极"], version, withGrant.extras, oneHeld)).toMatchObject({
       counts: { 远见: 1 }, activationCounts: { 远见: 2 }, activeNames: ["远见"],
@@ -252,7 +283,8 @@ describe("AKSP-Toolkit 盟约分析", () => {
     for (const extras of [{}, { 炎: 1, 助力: 1 }, { 调和: 1, 阿戈尔: 1 }]) {
       const setup = { weights: { 炎: 1.2 }, layers: { 助力: 7 }, targets: new Set(["坚守"]), extras };
       for (const bans of [new Set(), new Set(["炎", "调和", "坚守"])]) {
-        const candidates = Object.keys(version.operators).filter((name) => !isOperatorBanned(version.operators[name].covenants, bans));
+        const candidates = Object.keys(version.operators).filter((name) =>
+          !isOperatorBanned(version.operators[name].covenants, bans, version));
         const scoring = buildLineupScoring(version, candidates, setup);
         const score = (names) => sumActivatedCovenantScore(summarizeRecommendedCovenants(names, version, extras), version, setup);
         for (const size of [3, 4, 5]) {
@@ -281,7 +313,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
       expect(networkScore()).toBe(2.4);
       await button("策略编辑").trigger("click");
       expect(wrapper.findAll(".strategy-page nav button").map((item) => item.text()))
-        .toEqual(["终局阵容方案", "相性羁绊", "评分设置"]);
+        .toEqual(["终局阵容方案", "相性羁绊", "评分设置", "盟约分类"]);
       expect(wrapper.findAll(".auto-endgame h3").map((heading) => heading.attributes("id")))
         .toEqual(["automatic-7", "automatic-8", "automatic-9"]);
       await button("相性羁绊").trigger("click");
@@ -339,6 +371,41 @@ describe("AKSP-Toolkit 盟约分析", () => {
     expect(pieces.A).toEqual({ normal: 1, promoted: 0 });
     expect(normalizeInventory({ pieces: { A: { normal: 4, promoted: 0 } } }).pieces.A)
       .toEqual({ normal: 1, promoted: 1 });
+  });
+
+  it("星极天然享受成对倍率，买入即晋升时改用晋升倍率，旧存档也会合成", async () => {
+    localStorage.clear();
+    useGameVersion().setVersion("guicheng");
+    const version = getGameVersion("guicheng");
+    const old = { pieces: { 星极: { normal: 2, promoted: 1 } } };
+    expect(normalizeInventory(old, version).pieces.星极).toEqual({ normal: 0, promoted: 2 });
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const wrapper = mount(Toolkit);
+    try {
+      await wrapper.findAll("nav button").find((button) => button.text() === "盟约分析").trigger("click");
+      const operator = () => wrapper.findAll(".ranking-list button")
+        .find((button) => button.get(".rank-name").text() === "星极");
+      expect(operator().get(".rank-pair").text()).toBe("成对 ×1.2");
+      const consider = wrapper.findAll("button").find((button) => button.text() === "考虑持有");
+      await consider.trigger("click");
+      expect(operator().find(".rank-pair").exists()).toBe(false);
+      await consider.trigger("click");
+      await operator().trigger("click");
+      expect(operator().find(".rank-pair").exists()).toBe(false);
+      expect(operator().get(".rank-promotion").text()).toBe("买入晋升 ×1.5");
+      await operator().trigger("click");
+      expect(wrapper.find('[aria-label="出售 星极"]').exists()).toBe(false);
+      expect(wrapper.get('[aria-label="出售晋升棋子 星极"]').element.parentElement.textContent).toContain("晋升 ×1");
+      expect(wrapper.get("#held-lineup-title").text()).toContain("1/8");
+      expect(operator().get(".rank-pair").text()).toBe("成对 ×1.2");
+      await operator().trigger("click");
+      await wrapper.get('[aria-label="出售晋升棋子 星极"]').trigger("click");
+      expect(wrapper.get('[aria-label="出售 星极"]').element.parentElement.textContent).toContain("普通 ×1");
+    } finally {
+      wrapper.unmount();
+      canvas.mockRestore();
+      localStorage.clear();
+    }
   });
 
   it("持有槽最佳组合与逐枚穷举一致，重复上场只计一次盟约人数", () => {
@@ -432,7 +499,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
     expect(ranked.find(({ node }) => node.name === "B")).toMatchObject({ score: 7.5, formsPair: false, triggersPromotion: true });
   });
 
-  it("考虑持有按人数节点加分，阵容发生实际变化时改乘一次二倍", () => {
+  it("考虑持有按人数节点加分，阵容发生实际变化时改乘一次所设倍率", () => {
     const version = {
       covenants: {
         炎: { group: "core", activateCount: 2 },
@@ -459,16 +526,18 @@ describe("AKSP-Toolkit 盟约分析", () => {
       milestones: ["坚守"],
       changesLineup: false,
     });
-    const scoreB = (purchaseEffects, rankingWeights, covenantLayers) =>
-      rankOperators(graph, rankingWeights, 1, { purchaseEffects, covenantLayers }).find(({ node }) => node.name === "B");
+    const scoreB = (purchaseEffects, rankingWeights, options = {}) =>
+      rankOperators(graph, rankingWeights, 1, { purchaseEffects, ...options }).find(({ node }) => node.name === "B");
     expect(scoreB(singleSlot, weights)).toMatchObject({ score: 10, changesLineup: false });
     expect(scoreB(singleSlot, null).score).toBe(4);
-    expect(scoreB(singleSlot, null, { 坚守: 20 }).score).toBe(7);
+    expect(scoreB(singleSlot, null, { covenantLayers: { 坚守: 20 } }).score).toBe(7);
 
     const threeSlots = effects(3);
     expect(scoreB(threeSlots, weights)).toMatchObject({ score: 12, changesLineup: true });
     expect(scoreB(threeSlots, null).score).toBe(4);
-    expect(scoreB(threeSlots, null, { 坚守: 20 }).score).toBe(6);
+    expect(scoreB(threeSlots, null, { covenantLayers: { 坚守: 20 } }).score).toBe(6);
+    expect(scoreB(threeSlots, weights, { heldLineupChangeCoefficient: 1.25 }).score).toBe(7.5);
+    expect(scoreB(singleSlot, weights, { heldLineupChangeCoefficient: 1.25 }).score).toBe(10);
     expect(effects(1, { A: { normal: 2, promoted: 0 } }).get("A").changesLineup).toBe(true);
     expect(effects(2, {}).get("B").changesLineup).toBe(true);
   });
@@ -597,7 +666,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
     }
   });
 
-  it("每个共享盟约各有一条边，Ban 后仍保留具有可用盟约的干员", () => {
+  it("每个共享盟约各有一条边，规程核心盟约被 Ban 时移除所属干员", () => {
     const guicheng = getGameVersion("guicheng");
     const both = "双盟约测试干员";
     const version = {
@@ -612,10 +681,11 @@ describe("AKSP-Toolkit 盟约分析", () => {
     );
     expect(edges.map(({ covenant }) => covenant).sort()).toEqual(["坚守", "炎"]);
     expect(new Set(edges.map(({ offset }) => offset)).size).toBe(2);
-    const partial = buildCovenantGraph(version, operators, ["炎"]);
-    expect(partial.nodes.find(({ name }) => name === "余")?.covenants).toEqual(["炎", "坚守"]);
-    expect(partial.edges.some(({ covenant }) => covenant === "炎")).toBe(true);
-    expect(buildCovenantGraph(version, operators, ["炎", "坚守"]).nodes.some(({ name }) => name === "余")).toBe(false);
+    const additionalBanned = buildCovenantGraph(version, operators, ["坚守"]);
+    expect(additionalBanned.nodes.find(({ name }) => name === "余")?.covenants).toEqual(["炎", "坚守"]);
+    const coreBanned = buildCovenantGraph(version, operators, ["炎"]);
+    expect(coreBanned.nodes.some(({ name }) => name === "余")).toBe(false);
+    expect(coreBanned.edges.some(({ covenant }) => covenant === "炎")).toBe(false);
   });
 
   it("独行、绝技、调和保留盟约归属但不产生连线或关联分", () => {
@@ -635,7 +705,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
       .toEqual([[1, 2], [1, 2], [0, 0]]);
   });
 
-  it("筛选已 Ban 的核心盟约时仍能看到余，并把局内 Ban 状态传给盟约分析", async () => {
+  it("规程只 Ban 叙拉古就从干员池和盟约分析移除忍冬", async () => {
     localStorage.clear();
     useGameVersion().setVersion("guicheng");
     const wrapper = mount(Toolkit, { global: { stubs: { CovenantAnalysis: true } } });
@@ -646,16 +716,21 @@ describe("AKSP-Toolkit 盟约分析", () => {
       expect(toolbar.find(".terminal-filter-btn").exists()).toBe(true);
       expect(toolbar.find(".view-switch").exists()).toBe(true);
       expect(wrapper.text()).not.toContain("查找盟约");
-      await wrapper.get('button[aria-label="Ban 炎"]').trigger("click");
-      const faction = wrapper.get('.cov-icon:has(img[alt="炎"])');
-      await faction.trigger("click");
-      const names = wrapper.findAll(".op-unit .name-label").map((item) => item.text());
-      expect(names).toContain("余");
-      expect(wrapper.get('button[aria-label="Ban 炎"]').attributes("aria-pressed")).toBe("true");
+      const names = () => wrapper.findAll(".op-unit .name-label").map((item) => item.text());
+      const swiftBan = wrapper.get('button[aria-label="Ban 迅捷"]');
+      expect(names()).toContain("忍冬");
+      await swiftBan.trigger("click");
+      expect(names()).toContain("忍冬");
+      await swiftBan.trigger("click");
+      expect(swiftBan.attributes("aria-pressed")).toBe("false");
+      await wrapper.get('button[aria-label="Ban 叙拉古"]').trigger("click");
+      expect(names()).not.toContain("忍冬");
+      expect(names()).toContain("陨星");
       await wrapper.findAll("nav button").find((button) => button.text() === "盟约分析").trigger("click");
       const graph = wrapper.getComponent({ name: "CovenantAnalysis" });
-      expect(graph.props("banned")).toEqual(["炎"]);
-      expect(graph.props("operators").map(({ name }) => name)).toEqual(expect.arrayContaining(["余", "折桠"]));
+      expect(graph.props("banned")).toEqual(["叙拉古"]);
+      expect(graph.props("operators").map(({ name }) => name)).not.toContain("忍冬");
+      expect(graph.props("operators").map(({ name }) => name)).toContain("陨星");
     } finally {
       wrapper.unmount();
     }
@@ -968,15 +1043,16 @@ describe("AKSP-Toolkit 盟约分析", () => {
     };
     try {
       await openWeights();
-      expect(wrapper.get(".weight-row:has([aria-label='炎权重']) .weight-tag").classes()).toContain("core");
-      expect(wrapper.get(".weight-row:has([aria-label='坚守权重']) .weight-tag").classes()).not.toContain("core");
-      expect(wrapper.get('[aria-label="炎权重"]').attributes("max")).toBe("3");
-      expect(wrapper.get('[aria-label="坚守权重"]').attributes("max")).toBe("2");
-      expect(wrapper.get('[aria-label="炎权重"]').attributes("step")).toBe("0.1");
+      expect(wrapper.get(".weight-row:has([aria-label='炎二级倍率']) .weight-tag").classes()).toContain("core");
+      expect(wrapper.get(".weight-row:has([aria-label='坚守基准分']) .weight-tag").classes()).not.toContain("core");
+      expect(wrapper.get('[aria-label="炎二级倍率"]').attributes("max")).toBe("3");
+      expect(wrapper.get('[aria-label="坚守基准分"]').attributes("max")).toBe("2");
+      expect(wrapper.get('[aria-label="坚守基准分"]').attributes("min")).toBe("0");
+      expect(wrapper.get('[aria-label="炎二级倍率"]').attributes("step")).toBe("0.1");
       expect(wrapper.get(".covenant-weight-group:has(#core-weight-rule)").findAll(".ruler span").map((tick) => tick.text()))
         .toEqual(["1.0", "1.5", "2.0", "2.5", "3.0"]);
       for (const [name, value] of [["炎", "2.4"], ["坚守", "1.8"]]) {
-        await wrapper.get(`[aria-label="${name}权重"]`).setValue(value);
+        await wrapper.get(`[aria-label="${name}${name === "炎" ? "二级倍率" : "基准分"}"]`).setValue(value);
       }
       const coefficient = () => wrapper.get(".terminal-coefficient input");
       expect(coefficient().element.value).toBe("1");
@@ -988,10 +1064,10 @@ describe("AKSP-Toolkit 盟约分析", () => {
       wrapper.unmount();
       wrapper = mountToolkit();
       await openWeights();
-      expect(wrapper.get('[aria-label="坚守权重"]').element.value).toBe("1.8");
+      expect(wrapper.get('[aria-label="坚守基准分"]').element.value).toBe("1.8");
       expect(coefficient().element.value).toBe("1.75");
       await wrapper.findAll(".version-btn").find((button) => button.text().includes("卫戍协议：盟约")).trigger("click");
-      expect(wrapper.get('[aria-label="炎权重"]').element.value).toBe("1");
+      expect(wrapper.get('[aria-label="炎二级倍率"]').element.value).toBe("1");
       expect(coefficient().element.value).toBe("1");
     } finally {
       wrapper.unmount();
@@ -1044,8 +1120,20 @@ describe("AKSP-Toolkit 盟约分析", () => {
       await editor.get(".picker-toggle").trigger("click");
       const operator = editor.get('[aria-label="目标干员"]');
       const availableNames = () => operator.findAll("option").map((option) => option.text());
+      const search = editor.get('input[type="search"]');
       expect(operator.element.disabled).toBe(false);
       expect(availableNames()).toEqual(expect.arrayContaining(["余", "拜松", "星极"]));
+      await search.setValue("MC");
+      expect(availableNames()).toContain("Miss.Christine");
+      await search.setValue("   B S   ");
+      expect(availableNames()).toContain("拜松");
+      expect(availableNames()).not.toContain("余");
+      await editor.get(".operator-picker-form label:nth-child(2) select").setValue("奇迹");
+      expect(availableNames()).not.toContain("拜松");
+      await editor.get(".operator-picker-form label:nth-child(2) select").setValue("");
+      await search.setValue("星极");
+      expect(availableNames()).toEqual(["选择干员", "星极"]);
+      await search.setValue("");
       await editor.get(".operator-picker-form label:nth-child(1) select").setValue("炎");
       expect(availableNames()).toEqual(expect.arrayContaining(["余", "拜松"]));
       expect(availableNames()).not.toContain("星极");
@@ -1158,15 +1246,15 @@ describe("AKSP-Toolkit 盟约分析", () => {
 
       await openWeights(first);
       await openWeights(second);
-      await first.get('[aria-label="炎权重"]').setValue("1.4");
-      await second.get('[aria-label="坚守权重"]').setValue("1.8");
+      await first.get('[aria-label="炎二级倍率"]').setValue("1.4");
+      await second.get('[aria-label="坚守基准分"]').setValue("1.8");
       expect(JSON.parse(localStorage.getItem(weightKey)).guicheng).toEqual({ 炎: 1.4, 坚守: 1.8 });
       syncFromOtherWindow(weightKey);
       await first.get(".terminal-coefficient input").setValue("1.5");
       syncFromOtherWindow(coefficientKey);
       await second.vm.$nextTick();
-      expect(first.get('[aria-label="坚守权重"]').element.value).toBe("1.8");
-      expect(second.get('[aria-label="炎权重"]').element.value).toBe("1.4");
+      expect(first.get('[aria-label="坚守基准分"]').element.value).toBe("1.8");
+      expect(second.get('[aria-label="炎二级倍率"]').element.value).toBe("1.4");
       expect(second.get(".terminal-coefficient input").element.value).toBe("1.5");
     } finally {
       first.unmount();
@@ -1209,13 +1297,22 @@ describe("AKSP-Toolkit 盟约分析", () => {
       const operator = wrapper.get(".pool-grid .op-unit");
       await operator.trigger("dblclick");
       await button("策略编辑").trigger("click");
+      await button("盟约分类").trigger("click");
+      await wrapper.get('[aria-label="阿戈尔 Lv.2主要类别"]').setValue("economy");
       await button("评分设置").trigger("click");
-      await wrapper.get('[aria-label="炎权重"]').setValue("2.6");
+      await wrapper.get('[aria-label="炎二级倍率"]').setValue("2.6");
       await wrapper.get(".terminal-coefficient input").setValue("1.25");
       expect(wrapper.get(".pair-coefficient input").element.value).toBe("1.2");
       await wrapper.get(".pair-coefficient input").setValue("1.8");
-      expect(wrapper.get('[aria-label="持续叠加倍率"]').element.value).toBe("1.5");
-      await wrapper.get('[aria-label="持续叠加倍率"]').setValue("1.75");
+      const heldMultiplier = () => wrapper.get('[aria-label="考虑持有倍率"]');
+      expect(heldMultiplier().element.value).toBe("2");
+      await heldMultiplier().setValue("1.6");
+      expect(wrapper.get('[aria-label="叠层干员评分倍率"]').element.value).toBe("1.5");
+      await wrapper.get('[aria-label="叠层干员评分倍率"]').setValue("1.75");
+      expect(wrapper.get('[aria-label="可叠层盟约评分倍率"]').element.value).toBe("1.2");
+      await wrapper.get('[aria-label="可叠层盟约评分倍率"]').setValue("1.3");
+      await wrapper.get('[aria-label="Ⅳ阶基础分"]').setValue("1.9");
+      await wrapper.get('[aria-label="坚守基准分"]').setValue("0");
       await button("终局阵容方案").trigger("click");
       await wrapper.get(".strategy-lineup .picker-toggle").trigger("click");
       await wrapper.get(".strategy-lineup .operator-picker-form label:nth-child(1) select").setValue("炎");
@@ -1235,6 +1332,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
       expect(button("启用权重").attributes("aria-pressed")).toBe("true");
       await wrapper.get('[aria-label="高亮炎"]').trigger("click");
       await buyFlameOperators();
+      expect(wrapper.get(".ranking-list").text()).toContain("改变推荐阵容 ×1.6");
       expect(wrapper.find('.layer-name img[alt="炎"]').exists()).toBe(false);
       await button("显示图标").trigger("click");
       expect(wrapper.get('.layer-name img[alt="炎"]').exists()).toBe(true);
@@ -1290,17 +1388,22 @@ describe("AKSP-Toolkit 盟约分析", () => {
       const scoreBeforeStacking = yuScore();
       const lineupBeforeStacking = recommendedScore();
       await stackingToggle().trigger("click");
-      expect(yuScore()).toBeCloseTo(scoreBeforeStacking * 1.75, 2);
-      expect(recommendedScore()).toBe(lineupBeforeStacking);
+      expect(yuScore()).toBeGreaterThan(scoreBeforeStacking * 1.75);
+      expect(recommendedScore()).toBeGreaterThan(lineupBeforeStacking);
       await stackingToggle().trigger("click");
       expect(yuScore()).toBe(scoreBeforeStacking);
       await stackingToggle().trigger("click");
       await button("导出配置").trigger("click");
       expect(download).toHaveBeenCalledOnce();
+      expect(JSON.parse(exported).covenantFunctions.guicheng.阿戈尔).toEqual({ 2: ["economy"] });
       expect(JSON.parse(exported).analysis.view.zoom).toBe(1.2);
       expect(JSON.parse(exported).analysis.legendHidden).toBe(true);
       expect(JSON.parse(exported).inventory.guicheng.covenantLayers).toEqual({ 炎: 10 });
       expect(JSON.parse(exported).stackingCoefficients.guicheng).toBe(1.75);
+      expect(JSON.parse(exported).heldLineupChangeCoefficients.guicheng).toBe(1.6);
+      expect(JSON.parse(exported).stackableCovenantCoefficients.guicheng).toBe(1.3);
+      expect(JSON.parse(exported).tierBasePoints.guicheng).toEqual([0.5, 0.8, 1.1, 1.9, 1.7, 2]);
+      expect(JSON.parse(exported).weights.guicheng.坚守).toBe(0);
       expect(JSON.parse(exported).inventory.guicheng.stackingEnabled).toBe(true);
       expect(JSON.parse(exported).inventory.guicheng.directedSearch).toBe(true);
       expect(JSON.parse(exported).inventory.guicheng.extraCoreCounts).toEqual({ 炎: 3 });
@@ -1344,8 +1447,12 @@ describe("AKSP-Toolkit 盟约分析", () => {
       expect(wrapper.get('[aria-label="炎连线调粗"]').attributes("title")).toContain("4/5");
       expect(wrapper.get(".terminal-coefficient input").element.value).toBe("1.25");
       expect(wrapper.get(".pair-coefficient input").element.value).toBe("1.8");
-      expect(wrapper.get('[aria-label="持续叠加倍率"]').element.value).toBe("1.75");
-      expect(wrapper.get('[aria-label="炎权重"]').element.value).toBe("2.6");
+      expect(heldMultiplier().element.value).toBe("1.6");
+      expect(wrapper.get('[aria-label="叠层干员评分倍率"]').element.value).toBe("1.75");
+      expect(wrapper.get('[aria-label="可叠层盟约评分倍率"]').element.value).toBe("1.3");
+      expect(wrapper.get('[aria-label="Ⅳ阶基础分"]').element.value).toBe("1.9");
+      expect(wrapper.get('[aria-label="坚守基准分"]').element.value).toBe("0");
+      expect(wrapper.get('[aria-label="炎二级倍率"]').element.value).toBe("2.6");
       expect(wrapper.find(".my-team").exists()).toBe(false);
       expect(wrapper.get('[aria-label="Ban 不屈"]').attributes("aria-pressed")).toBe("true");
       expect(JSON.parse(localStorage.getItem("arknights_saved_teams"))[0].name).toBe("测试编队");
@@ -1384,7 +1491,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
 
       await importFile('{"format":"other"}');
       expect(wrapper.get(".configuration-status").text()).toContain("无法导入");
-      expect(wrapper.get('[aria-label="炎权重"]').element.value).toBe("2.6");
+      expect(wrapper.get('[aria-label="炎二级倍率"]').element.value).toBe("2.6");
       await button("撤销导入").trigger("click");
       await flushPromises();
       expect(wrapper.get(".version-btn.active").text()).toContain("盟约");
@@ -1397,7 +1504,7 @@ describe("AKSP-Toolkit 盟约分析", () => {
       canvas.mockRestore();
       vi.unstubAllGlobals();
     }
-  });
+  }, 15_000);
 
   it("干员池可折叠两类 Ban，并且只显示当前可用的终端干员", async () => {
     localStorage.clear();

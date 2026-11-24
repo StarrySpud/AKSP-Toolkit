@@ -128,8 +128,11 @@
             :directed-covenants="directedCovenants"
             :terminal-coefficient="terminalCoefficient"
             :pair-coefficient="pairCoefficient"
+            :held-lineup-change-coefficient="heldLineupChangeCoefficient"
             :stacking-coefficient="stackingCoefficient"
             :stacking-enabled="inventory.stackingEnabled"
+            :stackable-covenants="stackableCovenants"
+            :stackable-covenant-coefficient="stackableCovenantCoefficient"
             :pair-names="pairNames"
             :promotion-names="promotionNames"
             :purchase-effects="purchaseEffects"
@@ -237,10 +240,13 @@ import OperatorRanking from "./OperatorRanking.vue";
 import {
   buildCovenantGraph, COVENANT_LINE_WIDTHS, DEFAULT_LINE_LEVEL, UNGROUPED_COLOR,
 } from "./covenantGraph.js";
-import { DEFAULT_PAIR_COEFFICIENT, DEFAULT_STACKING_COEFFICIENT, DEFAULT_TERMINAL_COEFFICIENT } from "./covenantWeights.js";
+import {
+  DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT, DEFAULT_PAIR_COEFFICIENT, DEFAULT_STACKABLE_COVENANT_COEFFICIENT,
+  DEFAULT_STACKING_COEFFICIENT, DEFAULT_TERMINAL_COEFFICIENT,
+} from "./covenantWeights.js";
 import { drawCovenantGraph } from "./drawCovenantGraph.js";
 import { startOperatorDrag } from "./operatorDrag.js";
-import { normalizeInventory } from "./operatorInventory.js";
+import { getPromotionCopies, normalizeInventory } from "./operatorInventory.js";
 
 const props = defineProps({
   version: { type: Object, required: true },
@@ -250,7 +256,10 @@ const props = defineProps({
   covenantWeights: { type: Object, default: () => ({}) },
   terminalCoefficient: { type: Number, default: DEFAULT_TERMINAL_COEFFICIENT },
   pairCoefficient: { type: Number, default: DEFAULT_PAIR_COEFFICIENT },
+  heldLineupChangeCoefficient: { type: Number, default: DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT },
   stackingCoefficient: { type: Number, default: DEFAULT_STACKING_COEFFICIENT },
+  stackableCovenantCoefficient: { type: Number, default: DEFAULT_STACKABLE_COVENANT_COEFFICIENT },
+  stackableCovenants: { type: Set, default: () => new Set() },
   inventory: { type: Object, default: () => normalizeInventory() },
   held: { type: Array, default: () => [] },
   targetCovenantSet: { type: Set, default: () => new Set() },
@@ -279,11 +288,17 @@ const graph = computed(() => buildCovenantGraph(props.version, props.operators, 
   covenantOrder: ordersByVersion.value[props.version.id],
   affinityBonds: props.inventory.affinityBonds,
 }));
-const pairNames = computed(() => new Set(props.inventory.considerHeld
-  ? props.held.filter(({ normal }) => normal === 1).map(({ name }) => name)
-  : []));
+const pairNames = computed(() => {
+  if (!props.inventory.considerHeld) return new Set();
+  const names = new Set(props.held.filter(({ normal }) => normal === 1).map(({ name }) => name));
+  for (const { name } of graph.value.nodes) {
+    if (getPromotionCopies(name, props.version) === 2) names.add(name);
+  }
+  return names;
+});
 const promotionNames = computed(() => new Set(props.inventory.considerHeld
-  ? props.held.filter(({ normal }) => normal === 2).map(({ name }) => name)
+  ? props.held.filter(({ name, normal }) => normal === getPromotionCopies(name, props.version) - 1)
+    .map(({ name }) => name)
   : []));
 const purchaseEffects = computed(() => props.inventory.considerHeld
   ? props.getPurchaseEffects(graph.value.nodes)

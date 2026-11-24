@@ -29,7 +29,7 @@
               <img :src="node.avatar" alt="" width="32" height="32" loading="lazy" />
               <span>
                 <strong>{{ node.name }}</strong>
-                <small>{{ upgraded ? "晋升" : "普通" }}<template v-if="pieceScore"> · 棋子 +{{ formatRankingScore(pieceScore) }}</template></small>
+                <small>{{ upgraded ? "晋升" : "普通" }}<template v-if="pieceScore !== undefined"> · 棋子 +{{ formatRankingScore(pieceScore) }}</template></small>
               </span>
             </button>
             <div v-if="editable" class="lineup-piece-actions">

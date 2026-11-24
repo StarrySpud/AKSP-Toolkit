@@ -11,7 +11,7 @@
 
         <div class="head-actions">
           <ModuleHelp v-if="separateBan" label="干员池"
-            text="单击干员购入，双击切换终端标签。可拖到持有槽或目标阵容，也可按 Alt+Enter 加到目标阵容。Ban 只筛选干员池，干员的所有盟约都被 Ban 时才移出池子。已持有干员仍可上场和激活盟约。" />
+            text="单击干员购入，双击切换终端标签。可拖到持有槽或目标阵容，也可按 Alt+Enter 加到目标阵容。规程版干员的任一核心盟约被 Ban 就会移出招募池。其余情况下，干员的所有盟约都被 Ban 时才移出。已持有干员仍可上场和激活盟约。" />
           <button
             type="button"
             class="collapse-btn"
@@ -634,29 +634,6 @@
     return [...triggers];
   });
 
-  /** Ban 判定：干员的全部盟约都被 Ban 才隐藏（无盟约的干员不受影响） */
-  /**
-   * Ban 命中判定（按版本策略区分）：
-   * - covenant 策略（盟约版）：干员的全部盟约都被 Ban 才隐藏
-   * - faction 策略（规程版）：Ban 阵营 = 带该阵营的干员全部隐藏；
-   *   附加盟约仍按「全部被 Ban 才隐藏」
-   */
-  const isBanned = (covenants) => {
-    if (bannedCovenants.value.length === 0 || covenants.length === 0) {
-      return false;
-    }
-    if (!props.separateBan && currentVersion.value.banStrategy === "faction") {
-      const factionBanned = covenants.some(
-        (cov) =>
-          coreCovenants.value.includes(cov) &&
-          bannedCovenants.value.includes(cov),
-      );
-      if (factionBanned) {
-        return true;
-      }
-    }
-    return isOperatorBanned(covenants, bannedSet.value);
-  };
   const bannedSet = computed(() => new Set(bannedCovenants.value));
 
   /** 悬停展示干员特质与所属盟约 */
@@ -672,7 +649,9 @@
 
   const availablePool = computed(() =>
     operatorPool.value.filter(
-      (op) => !isBanned(getOperatorCovenants(op.name, currentVersion.value)),
+      (op) => !isOperatorBanned(
+        getOperatorCovenants(op.name, currentVersion.value), bannedSet.value, currentVersion.value,
+      ),
     ),
   );
 

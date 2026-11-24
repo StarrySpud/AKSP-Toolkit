@@ -1,27 +1,33 @@
 import { AFFINITY_BOND_LABEL } from "./affinityBonds.js";
 import { CORE_GROUP } from "../data/versions.js";
 
-export const MIN_COVENANT_WEIGHT = 1;
+const DEFAULT_COVENANT_WEIGHT = 1;
 export const MAX_COVENANT_WEIGHT = 2;
 export const CORE_COVENANT_BASE_WEIGHT = 2;
 const MAX_CORE_COVENANT_MULTIPLIER = 3;
 export const WEIGHT_STEP = 0.1;
 export const DEFAULT_TERMINAL_COEFFICIENT = 1;
 export const DEFAULT_PAIR_COEFFICIENT = 1.2;
+export const DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT = 2;
 export const DEFAULT_STACKING_COEFFICIENT = 1.5;
+export const DEFAULT_STACKABLE_COVENANT_COEFFICIENT = 1.2;
 export const PROMOTION_COEFFICIENT = 1.5;
-export const AFFINITY_BOND_WEIGHT = 2 * MIN_COVENANT_WEIGHT;
+export const AFFINITY_BOND_WEIGHT = 2;
 const LAYERS_PER_WEIGHT_BONUS = 20;
-export const COVENANT_TICKS_PER_POINT = 10 * LAYERS_PER_WEIGHT_BONUS;
+export const COVENANT_TICKS_PER_POINT = 1000 * LAYERS_PER_WEIGHT_BONUS;
 export const RANKING_TIERS = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ"];
 
 export function getCovenantWeightMax(group) {
   return group === CORE_GROUP ? MAX_CORE_COVENANT_MULTIPLIER : MAX_COVENANT_WEIGHT;
 }
 
+export function getCovenantWeightMin(group) {
+  return group === CORE_GROUP ? 1 : 0;
+}
+
 export function normalizeCovenantWeight(value, group) {
-  if (!Number.isFinite(value)) return MIN_COVENANT_WEIGHT;
-  const bounded = Math.max(MIN_COVENANT_WEIGHT, Math.min(getCovenantWeightMax(group), value));
+  if (!Number.isFinite(value)) return DEFAULT_COVENANT_WEIGHT;
+  const bounded = Math.max(getCovenantWeightMin(group), Math.min(getCovenantWeightMax(group), value));
   return Math.round(bounded * 10) / 10;
 }
 
@@ -33,7 +39,9 @@ function normalizeCoefficient(value, minimum, fallback) {
 
 export const normalizeTerminalCoefficient = (value) => normalizeCoefficient(value, 0, DEFAULT_TERMINAL_COEFFICIENT);
 export const normalizePairCoefficient = (value) => normalizeCoefficient(value, 1, DEFAULT_PAIR_COEFFICIENT);
+export const normalizeHeldLineupChangeCoefficient = (value) => normalizeCoefficient(value, 1, DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT);
 export const normalizeStackingCoefficient = (value) => normalizeCoefficient(value, 1, DEFAULT_STACKING_COEFFICIENT);
+export const normalizeStackableCovenantCoefficient = (value) => normalizeCoefficient(value, 1, DEFAULT_STACKABLE_COVENANT_COEFFICIENT);
 
 export function formatRankingScore(score) {
   return score.toFixed(3).replace(/0{1,2}$/, "");
@@ -43,17 +51,20 @@ export function getCovenantScoreTicks(name, weights, layers, targets, group, lev
   if (name === AFFINITY_BOND_LABEL) return AFFINITY_BOND_WEIGHT * COVENANT_TICKS_PER_POINT;
   const configured = normalizeCovenantWeight(weights?.[name], group);
   const weight = group === CORE_GROUP ? CORE_COVENANT_BASE_WEIGHT * (level > 1 ? configured : 1) : configured;
-  return Math.round(weight * 10)
+  return Math.round(weight * 10) * 100
     * (LAYERS_PER_WEIGHT_BONUS + (layers[name] ?? 0)) * (targets.has(name) ? 2 : 1);
 }
 
 export function rankOperators(graph, weights, terminalCoefficient = DEFAULT_TERMINAL_COEFFICIENT, {
   purchaseEffects = new Map(),
+  heldLineupChangeCoefficient = DEFAULT_HELD_LINEUP_CHANGE_COEFFICIENT,
   pairNames = new Set(),
   pairCoefficient = DEFAULT_PAIR_COEFFICIENT,
   promotionNames = new Set(),
   stackingCoefficient = DEFAULT_STACKING_COEFFICIENT,
   stackingEnabled = false,
+  stackableCovenants = new Set(),
+  stackableCovenantCoefficient = DEFAULT_STACKABLE_COVENANT_COEFFICIENT,
   covenantLayers = {},
   extraCoreCounts = {},
   levelTwoCovenants = new Set(),
@@ -63,15 +74,21 @@ export function rankOperators(graph, weights, terminalCoefficient = DEFAULT_TERM
   const edgeTicksByNode = new Map();
   const terminalHundredths = Math.round(normalizeTerminalCoefficient(terminalCoefficient) * 100);
   const pairHundredths = Math.round(normalizePairCoefficient(pairCoefficient) * 100);
+  const lineupChangeMultiplier = normalizeHeldLineupChangeCoefficient(heldLineupChangeCoefficient);
   const stackingHundredths = Math.round(normalizeStackingCoefficient(stackingCoefficient) * 100);
+  const covenantMultiplier = stackingEnabled ? normalizeStackableCovenantCoefficient(stackableCovenantCoefficient) : 1;
   const ticksPerPoint = COVENANT_TICKS_PER_POINT;
   const unweightedEdgeTicks = weights ? 0 : ticksPerPoint;
   const coreNames = new Set(graph.legend?.filter(({ group }) => group === CORE_GROUP).map(({ name }) => name));
-  const levelTicks = (name, level) => getCovenantScoreTicks(name, weights, covenantLayers, targetCovenants,
-    weights && coreNames.has(name) ? CORE_GROUP : undefined, level) * (directedCovenants.has(name) ? 2 : 1);
+  const levelTicks = (name, level) => {
+    const ticks = getCovenantScoreTicks(name, weights, covenantLayers, targetCovenants,
+      weights && coreNames.has(name) ? CORE_GROUP : undefined, level);
+    return Math.round(ticks * (stackableCovenants.has(name) ? covenantMultiplier : 1))
+      * (directedCovenants.has(name) ? 2 : 1);
+  };
   const covenantTicks = (name) => levelTicks(name, 1) + (levelTwoCovenants.has(name) ? levelTicks(name, 2) : 0);
   if (weights || Object.keys(covenantLayers).length || levelTwoCovenants.size || targetCovenants.size
-    || directedCovenants.size || graph.affinityMembers?.size) {
+    || directedCovenants.size || (covenantMultiplier !== 1 && stackableCovenants.size) || graph.affinityMembers?.size) {
     for (const { source, target, covenant } of graph.edges) {
       const ticks = covenant === AFFINITY_BOND_LABEL
         ? covenantTicks(covenant) : covenantTicks(covenant) - unweightedEdgeTicks;
@@ -102,7 +119,7 @@ export function rankOperators(graph, weights, terminalCoefficient = DEFAULT_TERM
     // Unweighted ranking keeps one base point per neighbor and adds per-covenant adjustments separately.
     const covenantDegree = degree - (graph.affinityOnlyNeighbors?.get(node) ?? 0);
     const baseTicks = covenantDegree * unweightedEdgeTicks + (edgeTicksByNode.get(node) ?? 0) + extraTicks;
-    const adjustedTicks = changesLineup ? baseTicks * 2 : baseTicks + bonusTicks;
+    const adjustedTicks = changesLineup ? baseTicks * lineupChangeMultiplier : baseTicks + bonusTicks;
     const stackingMultiplier = stackingEnabled && node.hasStackingTrait ? stackingHundredths : 100;
     const baseScore = (adjustedTicks * terminalMultiplier * stackingMultiplier) / (ticksPerPoint * 10_000);
     const triggersPromotion = promotionNames.has(node.name);

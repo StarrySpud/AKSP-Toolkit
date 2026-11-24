@@ -26,6 +26,7 @@ jobs:
       - run: npm ci
       - run: npm run test -- --run
       - run: npm run build
+      - run: cp ../LICENSE-UPSTREAM dist/LICENSE-UPSTREAM.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist

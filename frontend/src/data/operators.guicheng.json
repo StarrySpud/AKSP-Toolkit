@@ -405,6 +405,7 @@
     },
     "星极": {
         "tier": "Ⅱ",
+        "promotionCopies": 2,
         "covenants": [
             "奇迹"
         ],

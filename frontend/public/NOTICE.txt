@@ -1,0 +1,15 @@
+AKSP-Toolkit 网页版来源与授权
+
+上游代码：yeyeye613 的 Arknights-alliance-tool。原作者同意公开试用网页，并确认上游代码采用 MIT 许可。
+原仓库：https://github.com/yeyeye613/Arknights-alliance-tool
+网页发布同意：https://github.com/yeyeye613/Arknights-alliance-tool/issues/1#issuecomment-7094385130
+代码许可确认：https://github.com/yeyeye613/Arknights-alliance-tool/issues/1#issuecomment-7094747283
+上游许可原文：./LICENSE-UPSTREAM.txt
+
+Wiki 原创文字与资料：PRTS 明日方舟中文 Wiki 及对应页面贡献者。本项目把相关资料整理、增补为两个游戏版本的结构化数据。来自 PRTS 的原创部分及其改编沿用 CC BY-NC-SA 4.0。
+规程：https://prts.wiki/w/卫戍协议·规程/PRTS盟约记录
+盟约：https://prts.wiki/w/卫戍协议：盟约/PRTS盟约记录
+PRTS 版权说明：https://prts.wiki/w/PRTS:版权
+CC BY-NC-SA 4.0：https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+《明日方舟》游戏名称、头像、图标、游戏原文等的权利归原权利人。AKSP-Toolkit 是玩家制作的非官方免费试用工具。

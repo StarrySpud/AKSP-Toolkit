@@ -92,7 +92,7 @@
         <header class="lineup-header">
           <div class="held-heading">
             <h3 id="held-slots-title">持有槽</h3>
-            <ModuleHelp label="持有槽" text="单击、拖入干员卡，或用「选择干员」购入。三枚同名普通棋子自动晋升。出售只扣除所选棋子。" />
+            <ModuleHelp label="持有槽" text="单击、拖入干员卡，或用「选择干员」购入。通常三枚同名普通棋子自动晋升，规程版星极只需两枚。出售只扣除所选棋子。" />
           </div>
           <button type="button" class="held-action" :disabled="!held.length" @click="emit('clear-held')">清空持有槽</button>
         </header>

@@ -14,6 +14,9 @@
         <option v-for="name in additionalOptions" :key="name" :value="name">{{ name }}</option>
       </select>
     </label>
+    <label>搜索干员
+      <input v-model.trim="query" type="search" placeholder="名称或拼音首字母" autocomplete="off" />
+    </label>
     <div v-if="showAvatars && operatorOptions.length" class="operator-options" role="group" :aria-label="operatorLabel">
       <button v-for="name in operatorOptions" :key="name" type="button" :aria-pressed="operator === name"
         @click="operator = name">
@@ -32,6 +35,7 @@
 </template>
 
 <script setup>
+import { match } from "pinyin-pro";
 import { computed, ref, useId, watch } from "vue";
 import { getAvatarUrl } from "../utils/index.js";
 
@@ -49,13 +53,29 @@ const formId = useId();
 const expanded = ref(false);
 const core = ref("");
 const additional = ref("");
+const query = ref("");
 const operator = ref("");
 const uniqueNames = (names) => [...new Set(names)].sort((a, b) => a.localeCompare(b, "zh-CN"));
 const coreOptions = computed(() => uniqueNames(props.catalog.flatMap((item) => item.core)));
 const additionalOptions = computed(() => uniqueNames(props.catalog.flatMap((item) => item.additional)));
-const operatorOptions = computed(() => props.catalog.filter((item) =>
-  (!core.value || item.core.includes(core.value)) && (!additional.value || item.additional.includes(additional.value)),
-).map(({ name }) => name));
+const operatorOptions = computed(() => {
+  const search = query.value.toLowerCase();
+  const initials = search.replace(/\s+/g, "");
+  const canMatchInitials = /^[a-z0-9]+$/.test(initials);
+  return props.catalog
+    .filter((item) => (!core.value || item.core.includes(core.value))
+      && (!additional.value || item.additional.includes(additional.value)))
+    .map(({ name }) => name)
+    .filter((name) => !search || name.toLowerCase().includes(search)
+      || (canMatchInitials && matchesInitials(name, initials)));
+});
+
+function matchesInitials(name, initials) {
+  const text = name.toLowerCase();
+  const words = text.match(/[a-z][a-z0-9]*/g);
+  return (words?.length > 1 && words.map((word) => word[0]).join("").startsWith(initials))
+    || match(text, initials, { continuous: true, precision: "first", lastPrecision: "first" }) !== null;
+}
 
 watch(coreOptions, (options) => {
   if (!options.includes(core.value)) core.value = "";
@@ -75,7 +95,8 @@ function add() {
 <style scoped>
 .operator-picker-form { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; margin: 8px 0; }
 .operator-picker-form label { display: grid; gap: 3px; font-size: 12px; }
-.operator-picker-form select, .operator-picker-form button, .picker-toggle { padding: 3px 6px; border: 1px solid #3b4959; border-radius: 6px; background: #222d3a; color: #edf2f7; font-size: 12px; }
+.operator-picker-form select, .operator-picker-form input, .operator-picker-form button, .picker-toggle { padding: 3px 6px; border: 1px solid #3b4959; border-radius: 6px; background: #222d3a; color: #edf2f7; font-size: 12px; }
+.operator-picker-form input { box-sizing: border-box; width: 10rem; max-width: 100%; }
 .operator-picker-form button, .picker-toggle { cursor: pointer; }
 .picker-toggle { margin-block: 4px; }
 .operator-picker-form :disabled { opacity: .45; cursor: default; }

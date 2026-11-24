@@ -87,7 +87,7 @@ export function buildCovenantGraph(version, operators, banned, {
     if (seen.has(name)) continue;
     seen.add(name);
     const memberships = getOperatorCovenants(name, version);
-    if (isOperatorBanned(memberships, banSet)) continue;
+    if (isOperatorBanned(memberships, banSet, version)) continue;
     const covenants = [...new Set(memberships)].filter((covenant) => version.covenants[covenant]);
 
     const coreCovenant = covenants.find((covenant) => version.covenants[covenant].group === CORE_GROUP);

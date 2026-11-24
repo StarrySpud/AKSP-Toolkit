@@ -2,8 +2,16 @@ import { ADDITIONAL_GROUP, CORE_GROUP, GAME_VERSIONS } from "../data/versions.js
 import { getAvatarUrl } from "../utils/index.js";
 import { normalizeAffinityBonds, readAffinityBond } from "./affinityBonds.js";
 import { COVENANT_LINE_WIDTHS } from "./covenantGraph.js";
-import { getCovenantWeightMax, normalizeCovenantWeight, normalizePairCoefficient, normalizeStackingCoefficient, normalizeTerminalCoefficient, RANKING_TIERS } from "./covenantWeights.js";
-import { DEFAULT_LINEUP_SIZE, initialEndgamePlan, readEndgamePlan, readPieceCounts, readTargetPiece, validCovenantLayerCount, validLineupSize } from "./operatorInventory.js";
+import {
+  getCovenantWeightMax, getCovenantWeightMin, normalizeCovenantWeight, normalizeHeldLineupChangeCoefficient,
+  normalizePairCoefficient, normalizeStackableCovenantCoefficient, normalizeStackingCoefficient, normalizeTerminalCoefficient, RANKING_TIERS,
+} from "./covenantWeights.js";
+import { normalizeTierBasePoints } from "./lineupScoring.js";
+import { normalizeCovenantFunctionOverrides } from "./covenantFunctions.js";
+import {
+  DEFAULT_LINEUP_SIZE, getPromotionCopies, initialEndgamePlan, readEndgamePlan, readPieceCounts,
+  readTargetPiece, validCovenantLayerCount, validLineupSize,
+} from "./operatorInventory.js";
 
 export const CONFIG_FORMAT = "AKSP-Toolkit";
 export const CONFIG_VERSION = 1;
@@ -192,7 +200,7 @@ function readInventory(value, path, version) {
     extraCoreCounts: readCounts("extraCoreCounts", (name) => version.covenants[name]?.group === CORE_GROUP),
     extraAdditionalCounts: readCounts("extraAdditionalCounts", (name) => version.covenants[name]?.group === ADDITIONAL_GROUP),
     pieces: Object.fromEntries(Object.entries(object(data.pieces, `${path}.pieces`)).map(([name, counts]) => {
-      const piece = readPieceCounts(counts);
+      const piece = readPieceCounts(counts, getPromotionCopies(name, version));
       if (!name || !piece) invalid(`${path}.pieces.${name}`);
       return [name, piece];
     })),
@@ -220,14 +228,14 @@ export function parseToolkitConfiguration(json) {
     page: choice(data.page === "game" && game.tab === "weights" ? "strategy" : data.page,
       ["game", "analysis", "strategy"], "page"),
     strategyTab: choice(data.strategyTab ?? (game.tab === "weights" ? "weights" : "target"),
-      ["target", "affinity", "weights"], "strategyTab"),
+      ["target", "affinity", "weights", "classification"], "strategyTab"),
     terminals: byVersion(data.terminals, "terminals", (names, path) => [...new Set(list(names, path, text))]),
     weights: byVersion(data.weights, "weights", (weights, path, version) =>
       Object.fromEntries(Object.entries(object(weights, path))
         .filter(([name]) => Object.hasOwn(version.covenants, name))
         .map(([name, weight]) => {
           const group = version.covenants[name].group;
-          return [name, normalizeCovenantWeight(number(weight, 1, getCovenantWeightMax(group), `${path}.${name}`), group)];
+          return [name, normalizeCovenantWeight(number(weight, getCovenantWeightMin(group), getCovenantWeightMax(group), `${path}.${name}`), group)];
         }))),
     coefficients: byVersion(data.coefficients, "coefficients", (value, path) => normalizeTerminalCoefficient(
       number(value, 0, Number.MAX_SAFE_INTEGER / 100, path),
@@ -236,9 +244,28 @@ export function parseToolkitConfiguration(json) {
       pairCoefficients: byVersion(data.pairCoefficients, "pairCoefficients", (value, path) =>
         normalizePairCoefficient(number(value, 1, Number.MAX_SAFE_INTEGER / 100, path))),
     }),
+    ...(data.heldLineupChangeCoefficients === undefined ? {} : {
+      heldLineupChangeCoefficients: byVersion(data.heldLineupChangeCoefficients, "heldLineupChangeCoefficients", (value, path) =>
+        normalizeHeldLineupChangeCoefficient(number(value, 1, Number.MAX_SAFE_INTEGER / 100, path))),
+    }),
     ...(data.stackingCoefficients === undefined ? {} : {
       stackingCoefficients: byVersion(data.stackingCoefficients, "stackingCoefficients", (value, path) =>
         normalizeStackingCoefficient(number(value, 1, Number.MAX_SAFE_INTEGER / 100, path))),
+    }),
+    ...(data.stackableCovenantCoefficients === undefined ? {} : {
+      stackableCovenantCoefficients: byVersion(data.stackableCovenantCoefficients, "stackableCovenantCoefficients", (value, path) =>
+        normalizeStackableCovenantCoefficient(number(value, 1, Number.MAX_SAFE_INTEGER / 100, path))),
+    }),
+    ...(data.tierBasePoints === undefined ? {} : {
+      tierBasePoints: byVersion(data.tierBasePoints, "tierBasePoints", (value, path) => {
+        const points = list(value, path, (item, itemPath) => number(item, 0, Number.MAX_SAFE_INTEGER / 100, itemPath));
+        if (points.length !== RANKING_TIERS.length) invalid(path);
+        return normalizeTierBasePoints(points);
+      }),
+    }),
+    ...(data.covenantFunctions === undefined ? {} : {
+      covenantFunctions: byVersion(data.covenantFunctions, "covenantFunctions", (value, path, version) =>
+        normalizeCovenantFunctionOverrides(object(value, path), version)),
     }),
     ...(data.inventory === undefined ? {} : { inventory: byVersion(data.inventory, "inventory", readInventory) }),
     game: {

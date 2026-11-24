@@ -1,9 +1,12 @@
 <template>
-  <div class="toolkit" :class="`toolkit--${page}`">
+  <div class="toolkit" :class="[`toolkit--${page}`, { 'toolkit--potential': page === 'analysis' && analysisView !== 'graph' }]">
     <header class="toolkit-header">
       <div class="brand">
         <h1>AKSP-Toolkit</h1>
-        <a :href="currentVersion.source" target="_blank" rel="noopener">数据来源 PRTS</a>
+        <div class="brand-links">
+          <a :href="currentVersion.source" target="_blank" rel="noopener">数据来源 PRTS</a>
+          <a href="./NOTICE.txt" target="_blank" rel="noopener">来源与授权</a>
+        </div>
       </div>
       <nav aria-label="功能页面">
         <button :aria-pressed="page === 'game'" @click="page = 'game'">局内信息</button>
@@ -39,33 +42,47 @@
         @add-target-operator="addTargetPiece"
       />
     </div>
-    <CovenantAnalysis
-      ref="covenantAnalysis"
-      v-if="analysisOpened"
-      v-show="page === 'analysis'"
-      :version="currentVersion"
-      :operators="currentPool.operators"
-      :banned="currentPool.banned"
-      :terminal-names="terminalNames"
-      :covenant-weights="covenantWeights"
-      :terminal-coefficient="terminalCoefficient"
-      :pair-coefficient="pairCoefficient"
-      :stacking-coefficient="stackingCoefficient"
-      :inventory="inventory"
-      :held="held"
-      :target-covenant-set="targetCovenantSet"
-      :directed-covenants="directedCovenants"
-      :get-purchase-effects="purchaseEffectsFor"
-      @toggle-terminal="toggleTerminal"
-      @edit-held-pieces="editHeldPieces"
-      @add-target-operator="addTargetPiece"
-      @update-inventory="updateInventory"
-    />
+    <section v-if="analysisOpened" v-show="page === 'analysis'" class="analysis-workspace" aria-label="分析视图">
+      <nav aria-label="盟约分析页面">
+        <button type="button" :aria-pressed="analysisView === 'graph'" @click="analysisView = 'graph'">可视化分析</button>
+        <button type="button" :aria-pressed="analysisView === 'potential'" @click="analysisView = 'potential'">盟约适配</button>
+        <button type="button" :aria-pressed="analysisView === 'potential-map'" @click="analysisView = 'potential-map'">盟约适配可视化</button>
+      </nav>
+      <CovenantAnalysis
+        ref="covenantAnalysis"
+        v-show="analysisView === 'graph'"
+        :version="currentVersion"
+        :operators="currentPool.operators"
+        :banned="currentPool.banned"
+        :terminal-names="terminalNames"
+        :covenant-weights="covenantWeights"
+        :terminal-coefficient="terminalCoefficient"
+        :pair-coefficient="pairCoefficient"
+        :held-lineup-change-coefficient="heldLineupChangeCoefficient"
+        :stacking-coefficient="stackingCoefficient"
+        :stackable-covenant-coefficient="stackableCovenantCoefficient"
+        :stackable-covenants="stackableCovenants"
+        :inventory="inventory"
+        :held="held"
+        :target-covenant-set="targetCovenantSet"
+        :directed-covenants="directedCovenants"
+        :get-purchase-effects="purchaseEffectsFor"
+        @toggle-terminal="toggleTerminal"
+        @edit-held-pieces="editHeldPieces"
+        @add-target-operator="addTargetPiece"
+        @update-inventory="updateInventory"
+      />
+      <CovenantPotential v-if="page === 'analysis' && analysisView === 'potential'" class="analysis-potential"
+        :version="currentVersion" :analysis="covenantPotential" :overrides="covenantFunctionOverrides" />
+      <CovenantPotentialMap v-if="page === 'analysis' && analysisView === 'potential-map'" class="analysis-potential"
+        :analysis="covenantPotential" :version-id="currentVersionId" :overrides="covenantFunctionOverrides" />
+    </section>
     <section v-show="page === 'strategy'" class="strategy-page" aria-label="策略编辑">
       <nav aria-label="策略编辑页面">
         <button type="button" :aria-pressed="strategyTab === 'target'" @click="strategyTab = 'target'">终局阵容方案</button>
         <button type="button" :aria-pressed="strategyTab === 'affinity'" @click="strategyTab = 'affinity'">相性羁绊</button>
         <button type="button" :aria-pressed="strategyTab === 'weights'" @click="strategyTab = 'weights'">评分设置</button>
+        <button type="button" :aria-pressed="strategyTab === 'classification'" @click="strategyTab = 'classification'">盟约分类</button>
       </nav>
       <ScoringSettings
         v-if="strategyTab === 'weights'"
@@ -74,15 +91,23 @@
         :weights="covenantWeights"
         :terminal-coefficient="terminalCoefficient"
         :pair-coefficient="pairCoefficient"
+        :held-lineup-change-coefficient="heldLineupChangeCoefficient"
         :stacking-coefficient="stackingCoefficient"
+        :stackable-covenant-coefficient="stackableCovenantCoefficient"
+        :tier-base-points="tierBasePoints"
         @change="changeCovenantWeight"
         @change-terminal-coefficient="changeTerminalCoefficient"
         @change-pair-coefficient="changePairCoefficient"
+        @change-held-lineup-change-coefficient="changeHeldLineupChangeCoefficient"
         @change-stacking-coefficient="changeStackingCoefficient"
+        @change-stackable-covenant-coefficient="changeStackableCovenantCoefficient"
+        @change-tier-base-points="changeTierBasePoints"
       />
       <AffinityBondsEditor v-else-if="strategyTab === 'affinity' && page === 'strategy'" :key="currentVersionId"
         class="strategy-weights" :bonds="inventory.affinityBonds" :operator-catalog="targetOperatorCatalog"
         @add="addAffinityBond" @remove="removeAffinityBond" />
+      <CovenantFunctionEditor v-else-if="strategyTab === 'classification' && page === 'strategy'" class="strategy-weights"
+        :version="currentVersion" :overrides="covenantFunctionOverrides" @change="changeCovenantFunctions" />
       <div v-else-if="page === 'strategy'" class="endgame-plans">
         <div class="endgame-actions">
           <button type="button" @click="addEndgamePlan">添加方案</button>
@@ -203,6 +228,11 @@ import { useGameVersion } from "../composables/useGameVersion.js";
 import { ADDITIONAL_GROUP, CORE_GROUP, getCovenantsByGroup, getOperatorCovenants } from "../data/versions.js";
 import { getAvatarUrl } from "../utils/index.js";
 import CovenantAnalysis from "./CovenantAnalysis.vue";
+import CovenantPotential from "./CovenantPotential.vue";
+import CovenantPotentialMap from "./CovenantPotentialMap.vue";
+import CovenantFunctionEditor from "./CovenantFunctionEditor.vue";
+import { normalizeCovenantFunctionOverrides } from "./covenantFunctions.js";
+import { analyzeCovenantPotential } from "./covenantPotential.js";
 import AffinityBondsEditor from "./AffinityBondsEditor.vue";
 import { affinityBondKey, readAffinityBond } from "./affinityBonds.js";
 import ScoringSettings from "./ScoringSettings.vue";
@@ -210,8 +240,12 @@ import HeldLineup from "./HeldLineup.vue";
 import LineupView from "./LineupView.vue";
 import OperatorPicker from "./OperatorPicker.vue";
 import { canUndoTargetLineup, recordTargetLineupChange, undoTargetLineupChange } from "./targetLineupUndo.js";
-import { COVENANT_TICKS_PER_POINT, normalizeCovenantWeight, normalizePairCoefficient, normalizeStackingCoefficient, normalizeTerminalCoefficient } from "./covenantWeights.js";
-import { buildLineupScoring, getLineupPieceTicks, getLineupScoreTicks } from "./lineupScoring.js";
+import {
+  COVENANT_TICKS_PER_POINT, normalizeCovenantWeight, normalizeHeldLineupChangeCoefficient, normalizePairCoefficient,
+  normalizeStackableCovenantCoefficient, normalizeStackingCoefficient, normalizeTerminalCoefficient,
+} from "./covenantWeights.js";
+import { buildLineupScoring, getLineupPieceTicks, getLineupScoreTicks, normalizeTierBasePoints, TIER_BASE_POINTS } from "./lineupScoring.js";
+import { getStackableLineupCovenants } from "./lineupStacking.js";
 import { ENDGAME_LINEUP_SIZES } from "./endgameOptimizer.js";
 import {
   changeHeldPieces, DEFAULT_ENDGAME_PLAN_NAME, DEFAULT_LINEUP_SIZE, getHeldActivatableCovenants, getHeldOperators,
@@ -224,6 +258,7 @@ const { versions, currentVersion, currentVersionId, setVersion } = useGameVersio
 const page = ref("game");
 const strategyTab = ref("target");
 const analysisOpened = ref(false);
+const analysisView = ref("graph");
 const gameInformation = ref(null);
 const covenantAnalysis = ref(null);
 const configFile = ref(null);
@@ -247,7 +282,7 @@ const terminalSetting = localSetting(
 );
 const weightSetting = localSetting(
   "aksp_toolkit_covenant_weights",
-  "盟约权重",
+  "盟约基准分",
   (weights, { covenants }) => Object.fromEntries(Object.keys(covenants)
     .filter((name) => Number.isFinite(weights?.[name]))
     .map((name) => [name, normalizeCovenantWeight(weights[name], covenants[name].group)])),
@@ -258,16 +293,36 @@ const coefficientSetting = localSetting(
 const pairCoefficientSetting = localSetting(
   "aksp_toolkit_pair_coefficients", "成对干员系数", normalizePairCoefficient,
 );
+const heldLineupChangeCoefficientSetting = localSetting(
+  "aksp_toolkit_held_lineup_change_coefficients", "考虑持有倍率", normalizeHeldLineupChangeCoefficient,
+);
 const stackingCoefficientSetting = localSetting(
-  "aksp_toolkit_stacking_coefficients", "持续叠加倍率", normalizeStackingCoefficient,
+  "aksp_toolkit_stacking_coefficients", "叠层干员评分倍率", normalizeStackingCoefficient,
+);
+const stackableCovenantCoefficientSetting = localSetting(
+  "aksp_toolkit_stackable_covenant_coefficients", "可叠层盟约评分倍率", normalizeStackableCovenantCoefficient,
+);
+const tierBasePointsSetting = localSetting(
+  "aksp_toolkit_lineup_tier_base_points", "阵容阶位基础分", normalizeTierBasePoints,
+);
+const covenantFunctionSetting = localSetting(
+  "aksp_toolkit_covenant_functions", "盟约分类", normalizeCovenantFunctionOverrides,
 );
 const inventorySetting = localSetting("aksp_toolkit_operator_inventory", "持有干员", normalizeInventory);
 const inventory = computed(() => inventorySetting.current.value ?? normalizeInventory());
+const covenantPotential = computed(() => analyzeCovenantPotential(
+  currentVersion.value, currentPool.value.operators, currentPool.value.banned, inventory.value.lineupSize,
+));
 const terminalNames = computed(() => terminalSetting.current.value ?? []);
 const covenantWeights = computed(() => weightSetting.current.value ?? {});
 const terminalCoefficient = computed(() => normalizeTerminalCoefficient(coefficientSetting.current.value));
 const pairCoefficient = computed(() => normalizePairCoefficient(pairCoefficientSetting.current.value));
+const heldLineupChangeCoefficient = computed(() =>
+  normalizeHeldLineupChangeCoefficient(heldLineupChangeCoefficientSetting.current.value));
 const stackingCoefficient = computed(() => normalizeStackingCoefficient(stackingCoefficientSetting.current.value));
+const stackableCovenantCoefficient = computed(() => normalizeStackableCovenantCoefficient(stackableCovenantCoefficientSetting.current.value));
+const tierBasePoints = computed(() => tierBasePointsSetting.current.value ?? TIER_BASE_POINTS);
+const covenantFunctionOverrides = computed(() => covenantFunctionSetting.current.value ?? {});
 const held = computed(() => getHeldOperators(inventory.value.pieces));
 const heldCovenantMembers = computed(() => getHeldCovenantMembers(held.value, currentVersion.value));
 const targetCovenantSet = computed(() => new Set(inventory.value.targetCovenantNames));
@@ -285,12 +340,17 @@ const extraCovenants = computed(() => {
 });
 const lineupScoringOptions = computed(() => ({
   weights: covenantWeights.value, layers: inventory.value.covenantLayers, targets: targetCovenantSet.value,
-  extras: extraCovenantCounts.value,
+  extras: extraCovenantCounts.value, tierBasePoints: tierBasePoints.value,
+}));
+const recommendedScoringOptions = computed(() => ({
+  ...lineupScoringOptions.value,
+  stackingEnabled: inventory.value.stackingEnabled,
+  stackingCoefficient: stackingCoefficient.value,
 }));
 const recommend = (operators) => recommendHeldLineup(currentVersion.value, operators,
-  inventory.value.lineupSize, lineupScoringOptions.value);
+  inventory.value.lineupSize, recommendedScoringOptions.value);
 const recommendedLineup = computed(() => recommend(held.value));
-const lineup = computed(() => displayManualLineup(recommendedLineup.value.pieces));
+const lineup = computed(() => displayLineup(recommendedLineup.value.pieces, recommendedScoringOptions.value));
 const purchaseEffectsFor = (candidates) => getHeldPurchaseEffects(
   currentVersion.value, candidates, inventory.value.pieces, held.value,
   recommendedLineup.value, recommend, extraCovenantCounts.value,
@@ -299,6 +359,10 @@ const summarizeLineupCovenants = (team) => summarizeRecommendedCovenants(
   team, currentVersion.value, extraCovenantCounts.value, heldCovenantMembers.value,
 );
 const lineupCovenants = computed(() => summarizeLineupCovenants(recommendedLineup.value.pieces));
+const stackableCovenants = computed(() => inventory.value.stackingEnabled
+  ? getStackableLineupCovenants(currentVersion.value, recommendedLineup.value.pieces,
+    lineupCovenants.value.activeNames, inventory.value.covenantLayers, held.value)
+  : new Set());
 const targetOperatorNames = computed(() => [...new Set([
   ...Object.keys(currentVersion.value.operators),
   ...(currentPool.value.allOperators ?? []).map(({ name }) => name),
@@ -309,11 +373,11 @@ const targetOperatorCatalog = computed(() => targetOperatorNames.value.map((name
   const additional = covenants.filter((covenant) => currentVersion.value.covenants[covenant]?.group === ADDITIONAL_GROUP);
   return { name, core: core.length ? core : ["无核心盟约"], additional: additional.length ? additional : ["无附加盟约"] };
 }));
-const displayManualLineup = (pieces) => pieces.map(({ name, promoted }) => ({
+const displayLineup = (pieces, options = lineupScoringOptions.value) => pieces.map(({ name, promoted }) => ({
   node: { name, avatar: getAvatarUrl(encodeURIComponent(name)) }, promoted,
-  pieceScore: getLineupPieceTicks(name, currentVersion.value, promoted) / COVENANT_TICKS_PER_POINT,
+  pieceScore: getLineupPieceTicks(name, currentVersion.value, promoted, options) / COVENANT_TICKS_PER_POINT,
 }));
-const targetLineup = computed(() => displayManualLineup(inventory.value.targetLineup));
+const targetLineup = computed(() => displayLineup(inventory.value.targetLineup));
 const targetCovenants = computed(() => summarizeLineupCovenants(inventory.value.targetLineup));
 const directedCovenants = computed(() => new Set(inventory.value.directedSearch && targetLineup.value.length
   ? targetCovenants.value.activeNames : []));
@@ -327,14 +391,14 @@ const canUndoCurrentTarget = computed(() => canUndoTargetLineup(
 ));
 const endgamePlans = computed(() => inventory.value.endgamePlans.map((plan) => {
   const covenants = summarizeLineupCovenants(plan.pieces);
-  return { ...plan, lineup: displayManualLineup(plan.pieces), covenants, score: lineupScore(covenants, plan.pieces) };
+  return { ...plan, lineup: displayLineup(plan.pieces), covenants, score: lineupScore(covenants, plan.pieces) };
 }));
 const autoResult = shallowRef({});
 const automaticEndgameStatus = ref("正在搜索满编阵容…");
 const autoSignature = computed(() => page.value === "strategy" && strategyTab.value === "target" ? JSON.stringify([
   currentVersionId.value, currentPool.value.operators.map(({ name }) => name),
   covenantWeights.value, inventory.value.covenantLayers, inventory.value.targetCovenantNames,
-  extraCovenantCounts.value,
+  extraCovenantCounts.value, tierBasePoints.value,
   [...heldCovenantMembers.value].map(([name, members]) => [name, [...members].sort()]).sort(),
 ]) : "");
 let cachedAutoResult;
@@ -373,7 +437,7 @@ const automaticEndgamePlans = computed(() => ENDGAME_LINEUP_SIZES.map((limit) =>
     id: `automatic-${limit}`, title: `自动方案 · ${limit} 人`, limit, pieces,
     status: result === null ? "当前池子没有足够干员组成满编阵容。" : automaticEndgameStatus.value,
     score: result ? result.score / COVENANT_TICKS_PER_POINT : undefined,
-    lineup: displayManualLineup(pieces),
+    lineup: displayLineup(pieces),
     covenants: result ? summarizeLineupCovenants(result.names)
       : { activeNames: [], counts: {}, advancedLevels: {} },
   };
@@ -466,14 +530,32 @@ function changePairCoefficient(value) {
   pairCoefficientSetting.update(() => normalizePairCoefficient(value));
 }
 
+function changeHeldLineupChangeCoefficient(value) {
+  heldLineupChangeCoefficientSetting.update(() => normalizeHeldLineupChangeCoefficient(value));
+}
+
 function changeStackingCoefficient(value) {
   stackingCoefficientSetting.update(() => normalizeStackingCoefficient(value));
+}
+
+function changeStackableCovenantCoefficient(value) {
+  stackableCovenantCoefficientSetting.update(() => normalizeStackableCovenantCoefficient(value));
+}
+
+function changeTierBasePoints(points) {
+  tierBasePointsSetting.update(() => normalizeTierBasePoints(points));
+}
+
+function changeCovenantFunctions(name, level, tags) {
+  covenantFunctionSetting.update((overrides) => normalizeCovenantFunctionOverrides(
+    { ...overrides, [name]: { ...overrides?.[name], [level]: tags } }, currentVersion.value,
+  ));
 }
 
 function editHeldPieces(name, action) {
   if (action === "buy" && !isKnownOperator(name)) return;
   inventorySetting.update((state = normalizeInventory()) => ({
-    ...state, pieces: changeHeldPieces(state.pieces, name, action),
+    ...state, pieces: changeHeldPieces(state.pieces, name, action, currentVersion.value),
   }));
 }
 
@@ -652,7 +734,11 @@ function buildConfiguration() {
     weights: weightSetting.readAll(),
     coefficients: coefficientSetting.readAll(),
     pairCoefficients: pairCoefficientSetting.readAll(),
+    heldLineupChangeCoefficients: heldLineupChangeCoefficientSetting.readAll(),
     stackingCoefficients: stackingCoefficientSetting.readAll(),
+    stackableCovenantCoefficients: stackableCovenantCoefficientSetting.readAll(),
+    tierBasePoints: tierBasePointsSetting.readAll(),
+    covenantFunctions: covenantFunctionSetting.readAll(),
     inventory: inventorySetting.readAll(),
     game: gameInformation.value.readConfiguration(),
     analysis: covenantAnalysis.value?.readConfiguration() ?? null,
@@ -690,7 +776,11 @@ async function applyConfiguration(config) {
     weightSetting.replace(config.weights),
     coefficientSetting.replace(config.coefficients),
     ...(config.pairCoefficients ? [pairCoefficientSetting.replace(config.pairCoefficients)] : []),
+    heldLineupChangeCoefficientSetting.replace(config.heldLineupChangeCoefficients ?? {}),
     ...(config.stackingCoefficients ? [stackingCoefficientSetting.replace(config.stackingCoefficients)] : []),
+    stackableCovenantCoefficientSetting.replace(config.stackableCovenantCoefficients ?? {}),
+    tierBasePointsSetting.replace(config.tierBasePoints ?? {}),
+    covenantFunctionSetting.replace(config.covenantFunctions ?? {}),
     ...(config.inventory ? [inventorySetting.replace(config.inventory)] : []),
   ].every(Boolean);
   setVersion(config.versionId);
@@ -765,6 +855,7 @@ async function undoConfiguration() {
   border-bottom: 1px solid #303943;
 }
 .brand { display: flex; flex-direction: column; }
+.brand-links { display: flex; flex-wrap: wrap; gap: 0 8px; }
 h1 { margin: 0; color: #edf2f7; font-size: 23px; line-height: 1.3; }
 .brand a { font-size: 12px; color: #a3c9c6; }
 nav { display: flex; gap: 5px; }
@@ -814,7 +905,11 @@ nav button[aria-pressed="true"] { background: #a8ebda; border-color: #a8ebda; co
 }
 .game-page :deep(.tab-item.active) { background: #a8ebda; color: #11241f; }
 .shared-inventory { padding: 0 clamp(12px, 3vw, 40px) 16px; min-width: 0; }
-.toolkit--strategy { height: 100dvh; grid-template-rows: auto minmax(min(210px, 35dvh), 1fr) auto; }
+.toolkit--strategy, .toolkit--potential { height: 100dvh; grid-template-rows: auto minmax(min(210px, 35dvh), 1fr) auto; }
+.analysis-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; }
+.analysis-workspace > nav { padding: 8px clamp(12px, 3vw, 40px) 0; }
+.analysis-workspace > nav button { padding: 4px 9px; font-size: 12px; }
+.analysis-potential { margin: 8px clamp(12px, 3vw, 40px) 0; }
 .strategy-page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 14px clamp(12px, 3vw, 40px); }
 .strategy-page nav { flex-shrink: 0; margin-bottom: 10px; }
 .strategy-weights, .endgame-scroll { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }

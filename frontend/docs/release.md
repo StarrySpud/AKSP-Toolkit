@@ -2,7 +2,7 @@
 
 ## 发布前确认
 
-- 检查原项目作者允许的代码分发方式，以及 PRTS 数据、游戏头像和启动器图标的再分发条件。当前上游基线未找到项目级许可证。Windows 启动器内嵌网页和游戏素材，上传 EXE 也会分发这些内容。 [GitHub 许可证说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository)
+- 原作者同意部署免费试用网页，并确认上游代码采用 MIT。发布时保留上游署名、许可与 PRTS 资料来源。发布 Windows 启动器前单独核对其内嵌网页、游戏素材和图标的使用条件。 [原作者的授权回复](https://github.com/yeyeye613/Arknights-alliance-tool/issues/1) · [第三方资料说明](../public/NOTICE.txt)
 - 在本项目单独配置 Git 提交署名。使用网名与 GitHub **Settings → Emails** 中显示的 `noreply` 地址。提交前执行 `git var GIT_AUTHOR_IDENT` 检查最终署名，推送前检查暂存区。保留上游记录。
 - 创建自己账号下的空仓库 `AKSP-Toolkit`，确认仓库的可见范围和试用渠道。使用 `origin` 指向自己的仓库，保留 `upstream` 作为原项目来源。
 

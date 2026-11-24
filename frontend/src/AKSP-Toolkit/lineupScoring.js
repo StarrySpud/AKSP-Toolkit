@@ -1,17 +1,28 @@
-import { CORE_GROUP, getEffectiveOperatorCovenants, getOperatorTier } from "../data/versions.js";
+import { CORE_GROUP, getEffectiveOperatorCovenants, getOperatorTier, hasStackingTrait } from "../data/versions.js";
 import { getCovenantMemberThresholds, HARMONY_COVENANT } from "../composables/useCovenantStats.js";
-import { COVENANT_TICKS_PER_POINT, getCovenantScoreTicks, RANKING_TIERS } from "./covenantWeights.js";
+import { COVENANT_TICKS_PER_POINT, getCovenantScoreTicks, normalizeStackingCoefficient, RANKING_TIERS } from "./covenantWeights.js";
 
 export const TIER_BASE_POINTS = [0.5, 0.8, 1.1, 1.4, 1.7, 2];
 
-export function getLineupPieceTicks(name, version, promoted) {
-  const index = RANKING_TIERS.indexOf(getOperatorTier(name, version));
-  return Math.round((TIER_BASE_POINTS[index] ?? 0) * COVENANT_TICKS_PER_POINT) * (promoted ? 2 : 1);
+export function normalizeTierBasePoints(points) {
+  return TIER_BASE_POINTS.map((fallback, index) => {
+    const value = points?.[index];
+    const hundredths = Math.round(value * 100);
+    return Number.isFinite(value) && value >= 0 && Number.isSafeInteger(hundredths) ? hundredths / 100 : fallback;
+  });
 }
 
-export function buildLineupScoring(version, operators, {
-  weights, layers, targets, extras = {}, heldMembers, defaultPromoted = false,
-}) {
+export function getLineupPieceTicks(name, version, promoted, {
+  tierBasePoints = TIER_BASE_POINTS, stackingEnabled = false, stackingCoefficient,
+} = {}) {
+  const index = RANKING_TIERS.indexOf(getOperatorTier(name, version));
+  const coefficient = stackingEnabled && hasStackingTrait(name, version) ? normalizeStackingCoefficient(stackingCoefficient) : 1;
+  return Math.round((tierBasePoints[index] ?? TIER_BASE_POINTS[index] ?? 0) * coefficient * COVENANT_TICKS_PER_POINT)
+    * (promoted ? 2 : 1);
+}
+
+export function buildLineupScoring(version, operators, options) {
+  const { weights, layers, targets, extras = {}, heldMembers, defaultPromoted = false } = options;
   const covenants = Object.keys(version.covenants).flatMap((name) => {
     const thresholds = getCovenantMemberThresholds(name, version.covenants);
     return thresholds.length ? [{
@@ -33,7 +44,7 @@ export function buildLineupScoring(version, operators, {
       .map((covenant) => indexes.get(covenant)).sort((a, b) => a - b);
     const heldOverlap = covenants.flatMap(({ name: covenant }, index) =>
       extras[covenant] > 0 && heldMembers?.get(covenant)?.has(name) ? [index] : []);
-    const normalPoints = getLineupPieceTicks(name, version, false);
+    const normalPoints = getLineupPieceTicks(name, version, false, options);
     candidates.push({ name, members, heldOverlap,
       normal: operator.normal ?? Number(!defaultPromoted), promoted: operator.promoted ?? Number(defaultPromoted),
       normalPoints, promotedPoints: normalPoints * 2 });
@@ -56,5 +67,5 @@ export function sumActivatedCovenantScore({ activeNames, advancedLevels }, versi
 
 export function getLineupScoreTicks(covenants, pieces, version, options) {
   return sumActivatedCovenantScore(covenants, version, options) + pieces.reduce((sum, { name, promoted }) =>
-    sum + getLineupPieceTicks(name, version, promoted), 0);
+    sum + getLineupPieceTicks(name, version, promoted, options), 0);
 }
